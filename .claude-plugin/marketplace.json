@@ -1,0 +1,11 @@
+{
+  "name": "togi",
+  "description": "Sharpen AI context docs through friction (研ぎ)",
+  "plugins": [
+    {
+      "name": "togi",
+      "description": "Capture AI agent friction events at session end and turn them into context doc improvements via pull requests",
+      "source": "./."
+    }
+  ]
+}
