@@ -32,17 +32,25 @@ Run `/togi:setup` in Claude Code. The skill will:
 3. Configure session hooks and the togi marketplace in `.claude/settings.json`
 4. Open a pull request with the changes
 
-To install the plugin, start Claude Code with the togi plugin directory or add it via the marketplace:
+Togi is distributed as a Claude Code marketplace — no cloning or file editing required.
 
-```bash
-claude --plugin-dir /path/to/togi
-```
-
-Then run:
+In Claude Code, run:
 
 ```
-/togi:setup
+/plugin marketplace add gwenneg/togi
 ```
+
+This registers the togi marketplace. Then install the plugin:
+
+```
+/plugin install togi@togi
+```
+
+The togi skills (`/togi:setup`, `/togi:enable`, `/togi:disable`, `/togi:update-context-docs`) are now available. Run `/togi:setup` to install the binary and finish configuration.
+
+### After setup (team)
+
+`/togi:setup` commits the marketplace configuration to `.claude/settings.json`. Any developer who pulls the repo gets the togi skills automatically — no manual step needed. Skill definitions update at Claude Code startup via `autoUpdate: true`.
 
 ## Usage
 
