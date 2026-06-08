@@ -53,9 +53,6 @@ jobs:
               -o "dist/togi-${platform%/*}-${platform#*/}" .
           done
 
-      - name: Generate checksums
-        run: sha256sum dist/togi-* > dist/sha256sums.txt
-
       - name: Attest build provenance
         # Links each binary to this workflow run via Sigstore — verified by `togi install`.
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
@@ -70,5 +67,4 @@ jobs:
           gh release create "$TAG" \
             --title "$TAG" \
             --generate-notes \
-            dist/togi-* \
-            dist/sha256sums.txt
+            dist/togi-*
