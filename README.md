@@ -28,7 +28,7 @@ PR merged → agent reads better docs → fewer stumbles next session
 Run `/togi:setup` in Claude Code. The skill will:
 
 1. Explain what togi does and ask for consent
-2. Download the binary for your platform and verify it via `gh attestation verify` and SHA-256 checksum
+2. Download the binary for your platform and verify it via `gh attestation verify`
 3. Configure session hooks and the togi marketplace in `.claude/settings.json`
 4. Open a pull request with the changes
 
@@ -126,7 +126,7 @@ Injected content in the transcript could produce friction events targeting arbit
 
 ## Supply chain
 
-Togi binaries are built in CI, attested via [GitHub artifact attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations), and verified on install with `gh attestation verify`. Checksums are generated and published alongside each release.
+Togi binaries are built in CI, attested via [GitHub artifact attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations), and verified on install with `gh attestation verify`.
 
 To verify a binary manually:
 
@@ -147,7 +147,7 @@ The release workflow will:
 1. Bump `plugin.json` to the new version and push to main
 2. Build binaries for Linux and macOS (amd64 and arm64)
 3. Attest all four binaries
-4. Publish the GitHub release with binaries and `sha256sums.txt`
+4. Publish the GitHub release with binaries
 
 ## License
 
