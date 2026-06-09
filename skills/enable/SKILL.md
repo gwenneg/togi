@@ -1,16 +1,18 @@
 ---
 name: enable
-description: Enable togi friction capture for you only — not committed, not shared
-allowedTools:
-  - Bash(.claude/bin/togi enable)
+description: Re-enable togi friction capture after disabling it — personal, not committed
+allowed-tools:
+  - Bash(set-enabled.sh 1)
 ---
 
 # Instructions
 
-Run:
+Run the following commands:
 
 ```bash
-.claude/bin/togi enable
+set-enabled.sh 1
+echo "Friction capture re-enabled."
+echo "Run /togi:disable at any time to opt out."
 ```
 
 Show the output to the user verbatim.

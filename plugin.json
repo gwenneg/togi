@@ -1,8 +1,0 @@
-{
-  "name": "togi",
-  "description": "Sharpen AI context docs through friction (研ぎ)",
-  "version": "0.1.0",
-  "components": {
-    "skills": "skills/"
-  }
-}

@@ -1,21 +1,14 @@
 ---
 name: setup
 description: Install togi — session hooks that capture AI friction events and remind developers to improve context docs
-allowedTools:
-  - Bash(awk *)
-  - Bash(bash *)
-  - Bash(chmod *)
-  - Bash(curl *)
-  - Bash(echo *)
-  - Bash(grep *)
-  - Bash(jq *)
-  - Bash(mkdir *)
-  - Bash(mktemp *)
-  - Bash(mv *)
-  - Bash(rm *)
-  - Bash(shasum *)
-  - Bash(sha256sum *)
-  - Bash(uname *)
+allowed-tools:
+  - Bash(bash setup.sh)
+  - Bash(git add *)
+  - Bash(git branch *)
+  - Bash(git checkout *)
+  - Bash(git commit *)
+  - Bash(git push *)
+  - Bash(gh pr create)
 ---
 
 # Instructions
@@ -24,144 +17,50 @@ allowedTools:
 
 Output the following text verbatim before taking any other action:
 
-> **Togi** (研ぎ, to sharpen) is a friction-driven feedback loop for AI context docs. At the end of each session, a hook asks a small model to scan the transcript for friction events — corrections, clarifications, mistakes, tool denials — and writes them to `.claude/friction/`. Once enough sessions accumulate, a startup reminder prompts the team to run `/togi:update-context-docs`, which turns those events into doc improvements via a pull request.
+> **Togi** (研ぎ, to sharpen) is a friction-driven feedback loop for AI context docs. During each session, Claude detects friction events — corrections, clarifications, mistakes, tool denials — and writes them directly to `.claude/friction/` as they occur. Once enough sessions accumulate, a startup reminder prompts the team to run `/togi:update-context-docs`, which turns those events into doc improvements via a pull request.
 >
-> **Before proceeding, read these two points carefully:**
+> **Before proceeding, read this carefully:**
 >
-> 1. **Data sent to the API.** Friction capture is opt-in (see below). When enabled, up to 200 KB of the conversation between the user and Claude is sent to the Anthropic API at the end of each session using the developer's existing Claude Code credentials. Tool call outputs (file contents, command output) are excluded, but anything discussed in the conversational text is included. Injected content in the transcript could produce friction events targeting arbitrary files — review the PR diff from `/togi:update-context-docs` carefully.
->
-> 2. **Supply chain.** This phase downloads a pre-built binary from a GitHub release and verifies it in two steps: first using GitHub's artifact attestation (`gh attestation verify`) to prove the binary was produced by the togi CI workflow, then using a SHA-256 checksum for integrity. Do not install if either check fails.
+> **What this installs.** This phase runs a configure script from the togi plugin to wire up your project: it adds the togi marketplace entry and plugin to `.claude/settings.json`, writes the friction capture instructions to `.claude/capture-friction.md`, imports them into `CLAUDE.md`, and updates `.gitignore`. The SessionStart hook that fires `session-start.sh` at each session is managed by the plugin itself via `hooks/hooks.json` — nothing is written to your project for that.
 
 Use `AskUserQuestion` to ask: **"Do you want to proceed with the installation?"** Options: **Yes, proceed** / **No, cancel**.
 
 If the user selects No, stop.
 
-## Phase 2: Download and verify the togi binary
-
-Detect the current platform:
-
-```bash
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m)
-[ "$ARCH" = "x86_64" ] && ARCH="amd64"
-[ "$ARCH" = "aarch64" ] && ARCH="arm64"
-BINARY="togi-${OS}-${ARCH}"
-echo "Platform: $OS/$ARCH — binary: $BINARY"
-```
-
-Fetch the latest release tag:
-
-```bash
-TAG=$(curl -fsSL https://api.github.com/repos/gwenneg/togi/releases/latest | jq -r '.tag_name')
-if [[ -z "$TAG" || "$TAG" == "null" ]]; then
-  echo "Error: could not fetch latest release tag." >&2
-  exit 1
-fi
-echo "Installing togi $TAG"
-```
-
-Download the binary and checksum file into a temporary directory:
-
-```bash
-TOGI_TMPDIR=$(mktemp -d)
-BASE="https://github.com/gwenneg/togi/releases/download/${TAG}"
-
-curl -fsSL "${BASE}/${BINARY}" -o "${TOGI_TMPDIR}/togi" || { rm -rf "$TOGI_TMPDIR"; exit 1; }
-curl -fsSL "${BASE}/sha256sums.txt" -o "${TOGI_TMPDIR}/sha256sums.txt" || { rm -rf "$TOGI_TMPDIR"; exit 1; }
-```
-
-Verify the build attestation using `gh`. This proves the binary was produced by the togi
-GitHub Actions release workflow, using the same trust anchor the developer already relies on
-for GitHub access — no additional tool installation required:
-
-```bash
-if ! gh attestation verify "${TOGI_TMPDIR}/togi" --repo gwenneg/togi; then
-  echo "Error: attestation verification failed." >&2
-  rm -rf "$TOGI_TMPDIR"
-  exit 1
-fi
-
-echo "Attestation OK"
-```
-
-Then verify the binary checksum against the now-trusted `sha256sums.txt`:
-
-```bash
-EXPECTED=$(awk -v bin="$BINARY" '$2==bin{print $1}' "${TOGI_TMPDIR}/sha256sums.txt")
-if [ -z "$EXPECTED" ]; then
-  echo "Error: no checksum entry found for ${BINARY}." >&2
-  rm -rf "$TOGI_TMPDIR"
-  exit 1
-fi
-
-if command -v sha256sum &>/dev/null; then
-  ACTUAL=$(sha256sum "${TOGI_TMPDIR}/togi" | awk '{print $1}')
-else
-  ACTUAL=$(shasum -a 256 "${TOGI_TMPDIR}/togi" | awk '{print $1}')
-fi
-
-if [ "$EXPECTED" != "$ACTUAL" ]; then
-  echo "Error: checksum verification failed for ${BINARY}." >&2
-  echo "  Expected: $EXPECTED" >&2
-  echo "  Actual:   $ACTUAL" >&2
-  rm -rf "$TOGI_TMPDIR"
-  exit 1
-fi
-
-echo "Checksum OK: $ACTUAL"
-```
-
-If either verification step fails, stop and report the error. Do not proceed.
-
-Install the binary:
-
-```bash
-mkdir -p .claude/bin
-mv "${TOGI_TMPDIR}/togi" .claude/bin/togi
-chmod +x .claude/bin/togi
-rm -rf "$TOGI_TMPDIR"
-```
-
-## Phase 3: Configure hooks, marketplace, and gitignore
+## Phase 2: Configure hooks, CLAUDE.md, marketplace, and gitignore
 
 Output the following text verbatim before taking any other action in this phase:
 
-> This phase configures `.claude/settings.json` with the togi session hooks, marketplace
-> registration, and plugin enablement, and updates `.gitignore` with the togi allowlist.
-> All existing content is preserved.
+> This phase configures `.claude/settings.json` with the togi marketplace registration and plugin enablement, writes the friction capture instructions to `.claude/capture-friction.md` and imports them into `CLAUDE.md`, and updates `.gitignore` with the togi allowlist. All existing content is preserved.
 >
-> **Friction capture is disabled by default.** To enable it, run `/togi:enable` (personal)
-> or add `"TOGI_ENABLED": "1"` to `.claude/settings.json` (team-wide). Each developer
-> can always opt out with `/togi:disable`.
+> **Friction capture is enabled by default for everyone on the team.** Events are written as local markdown files to `.claude/friction/` (git-ignored) — no transcript is sent anywhere, no separate API call is made. Any developer can opt out personally with `/togi:disable`, which writes to `.claude/settings.local.json` (not committed).
 >
-> You can also set `TOGI_SESSION_THRESHOLD` (default: `3`) to control how many sessions
-> accumulate before the startup reminder appears.
+> You can set `TOGI_SESSION_THRESHOLD` (default: `3`) to control how many sessions accumulate before the startup reminder appears.
 
 Run:
 
 ```bash
-.claude/bin/togi configure
+bash setup.sh
 ```
 
 Show the output to the user verbatim. If the command fails, stop and report the error.
 
-## Phase 4: Commit and open a PR
+## Phase 3: Commit and open a PR
 
 Stage only these files:
-- `.claude/bin/togi`
+- `.claude/capture-friction.md`
 - `.claude/settings.json`
+- `CLAUDE.md`
 - `.gitignore`
 
 Create a branch named `chore/setup-togi` (add `-2`, `-3`, etc. if it already exists).
 
-Commit with message: `chore: set up togi ($(.claude/bin/togi version))`
+Commit with message: `chore: set up togi`
 
 Push and open a PR with a body that includes:
 
-- What was installed: the togi binary, session hooks, marketplace registration, and plugin enablement
-- Marketplace note: the togi plugin is now available in `/plugin` for all developers; skills (`/togi:update-context-docs`, `/togi:disable`) are enabled automatically via `enabledPlugins`
-- Opt-in instruction: add `"TOGI_ENABLED": "1"` to `.claude/settings.json` (team) or `.claude/settings.local.json` (personal) to enable friction capture
-- Opt-out instruction: run `/togi:disable` at any time
-- Data notice: when enabled, up to 200 KB of conversation text is sent to the Anthropic API per session; tool call outputs are excluded; review `/togi:update-context-docs` PR diffs carefully before merging
+- What was configured: togi marketplace entry and plugin enablement in `.claude/settings.json`, friction capture instructions (`.claude/capture-friction.md` imported into `CLAUDE.md`), and `.gitignore` entries
+- How friction capture works: during sessions, Claude detects friction events and writes them to `.claude/friction/` as they occur — no end-of-session API call, no transcript sent anywhere. The SessionStart hook is part of the togi plugin and fires automatically without any project-side configuration
+- Opt-out instruction: run `/togi:disable` at any time (personal, not committed)
 
 Include the standard `Generated with Claude Code` footer.

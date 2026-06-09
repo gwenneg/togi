@@ -1,16 +1,18 @@
 ---
 name: disable
 description: Disable togi friction capture for you only — not committed, not shared
-allowedTools:
-  - Bash(.claude/bin/togi disable)
+allowed-tools:
+  - Bash(set-enabled.sh 0)
 ---
 
 # Instructions
 
-Run:
+Run the following commands:
 
 ```bash
-.claude/bin/togi disable
+set-enabled.sh 0
+echo "Friction capture disabled for this repo."
+echo "To re-enable, run /togi:enable."
 ```
 
 Show the output to the user verbatim.
