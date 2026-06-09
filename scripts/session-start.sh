@@ -38,8 +38,7 @@ EVENT_COUNT=$(find "$FRICTION_DIR" -mindepth 2 -maxdepth 2 -name "*.md" 2>/dev/n
 mkdir -p "$FRICTION_DIR/$SAFE_ID"
 echo "$SAFE_ID" > "$FRICTION_DIR/active-session"
 
-OUTPUT=$(jq -n --arg ctx "Togi friction capture is active. This session's friction directory: .claude/friction/${SAFE_ID}/" \
-  '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $ctx}}')
+OUTPUT=$(jq -n '{hookSpecificOutput: {hookEventName: "SessionStart"}}')
 
 # Auto-update capture-friction.md when the plugin version changed or the project
 # copy is missing (e.g. first clone after setup was committed by a teammate).
@@ -77,7 +76,6 @@ if [ "${SESSION_COUNT:-0}" -ge "$THRESHOLD" ] && [ "${EVENT_COUNT:-0}" -gt 0 ]; 
     "$EMPTY" \
     "$(pad_line "$LINE1")" \
     "$(pad_line "$LINE2")" \
-    "$EMPTY" \
     "$EMPTY" \
     "$BORDER")
 

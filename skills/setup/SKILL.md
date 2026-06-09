@@ -68,7 +68,7 @@ jq -e '."enabledPlugins"."togi@togi" == true' .claude/settings.json > /dev/null 
 Allow friction writes without prompting if missing:
 
 ```bash
-jq -e '.permissions.allow | index("Write(.claude/friction/*)")' .claude/settings.json > /dev/null 2>&1 || \
+jq -e '.permissions.allow | index("Write(/.claude/friction/**)")' .claude/settings.json > /dev/null 2>&1 || \
   jq '.permissions.allow = ((.permissions.allow // []) + ["Write(/.claude/friction/**)"])' \
     .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
 ```
@@ -80,9 +80,9 @@ Write `.claude/capture-friction.md` with the following content (skip if the file
 ```markdown
 # Togi — Friction Capture
 
-Whenever any of the following occur during a session, write a friction event file **before your next response**. Capture now rather than trying to remember later.
+Write a friction event file **before your next response** whenever any of the following occur.
 
-A **friction event** is one of:
+A friction event is one of:
 - **correction** — you produced something the user had to fix
 - **clarification** — the user explained something the docs should have covered
 - **mistake** — you made a wrong assumption about the codebase
@@ -96,7 +96,7 @@ Skip user errors, one-off scope changes, transient errors, and case-specific cor
 
 ## How to write a friction file
 
-Write to `.claude/friction/{session_dir}/` where `{session_dir}` is the session directory injected via additional context at session start. If you no longer remember it, read `.claude/friction/active-session` to get the current session directory name.
+Read `.claude/friction/active-session` to get the session directory name, then write to `.claude/friction/{session_dir}/`.
 
 Use a short kebab-case filename describing the event: `missing-auth-docs.md`, `wrong-test-command.md`.
 
@@ -111,7 +111,7 @@ date: <YYYY-MM-DD>
 and the concrete rule or example that would prevent recurrence.>
 \`\`\`
 
-Only write to `.claude/friction/` — never elsewhere.
+Only write friction events to `.claude/friction/` — never elsewhere.
 ```
 
 ### 3. CLAUDE.md
