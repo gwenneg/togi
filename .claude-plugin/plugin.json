@@ -1,6 +1,6 @@
 {
   "name": "togi",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Sharpen AI context docs through friction (研ぎ)",
   "repository": "https://github.com/gwenneg/togi",
   "license": "Apache-2.0"
