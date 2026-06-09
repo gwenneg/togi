@@ -65,6 +65,14 @@ jq -e '."enabledPlugins"."togi@togi" == true' .claude/settings.json > /dev/null 
     .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
 ```
 
+Allow friction writes without prompting if missing:
+
+```bash
+jq -e '.permissions.allow | index("Write(.claude/friction/*)")' .claude/settings.json > /dev/null 2>&1 || \
+  jq '.permissions.allow = ((.permissions.allow // []) + ["Write(.claude/friction/*)"])' \
+    .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
+```
+
 ### 2. capture-friction.md
 
 Write `.claude/capture-friction.md` with the following content (skip if the file already exists and is identical):
