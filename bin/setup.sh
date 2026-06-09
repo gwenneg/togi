@@ -5,6 +5,7 @@
 
 set -euo pipefail
 
+PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
 CLAUDE_DIR="$PROJECT_DIR/.claude"
 SETTINGS="$CLAUDE_DIR/settings.json"
@@ -48,10 +49,10 @@ echo "Updated           : .claude/settings.json"
 
 # ─── capture-friction.md ──────────────────────────────────────────────────
 
-if cmp -s "${CLAUDE_PLUGIN_ROOT}/assets/capture-friction.md" "$CLAUDE_DIR/capture-friction.md" 2>/dev/null; then
+if cmp -s "${PLUGIN_ROOT}/assets/capture-friction.md" "$CLAUDE_DIR/capture-friction.md" 2>/dev/null; then
   echo "Already present   : .claude/capture-friction.md"
 else
-  cp "${CLAUDE_PLUGIN_ROOT}/assets/capture-friction.md" "$CLAUDE_DIR/capture-friction.md"
+  cp "${PLUGIN_ROOT}/assets/capture-friction.md" "$CLAUDE_DIR/capture-friction.md"
   echo "Updated           : .claude/capture-friction.md"
 fi
 
