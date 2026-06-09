@@ -65,11 +65,15 @@ jq -e '."enabledPlugins"."togi@togi" == true' .claude/settings.json > /dev/null 
     .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
 ```
 
-Allow friction writes without prompting if missing:
+Allow friction writes and date lookups without prompting if missing:
 
 ```bash
 jq -e '.permissions.allow | index("Write(/.claude/friction/**)")' .claude/settings.json > /dev/null 2>&1 || \
   jq '.permissions.allow = ((.permissions.allow // []) + ["Write(/.claude/friction/**)"])' \
+    .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
+
+jq -e '.permissions.allow | index("Bash(date*)")' .claude/settings.json > /dev/null 2>&1 || \
+  jq '.permissions.allow = ((.permissions.allow // []) + ["Bash(date*)"])' \
     .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
 ```
 
@@ -97,7 +101,9 @@ Skip user errors, one-off scope changes, transient errors, and case-specific cor
 
 ## How to write a friction file
 
-Write to `.claude/friction/` using a filename that starts with the current timestamp followed by a short kebab-case description: `20260609T143022-missing-auth-docs.md`, `20260609T143022-wrong-test-command.md`.
+Get the current timestamp by running `date +%Y%m%dT%H%M%S` via Bash before writing the file.
+
+Write to `.claude/friction/` using a filename that starts with that timestamp followed by a short kebab-case description: `20260609T143022-missing-auth-docs.md`, `20260609T143022-wrong-test-command.md`.
 
 \`\`\`
 ---
