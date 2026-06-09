@@ -37,10 +37,10 @@ fi
 
 # Add togi@togi to enabledPlugins if missing.
 PLUGIN_ENTRY="togi@togi"
-if jq -e --arg p "$PLUGIN_ENTRY" '.enabledPlugins | if . then any(. == $p) else false end' "$SETTINGS" > /dev/null 2>&1; then
+if jq -e --arg p "$PLUGIN_ENTRY" '.enabledPlugins[$p] == true' "$SETTINGS" > /dev/null 2>&1; then
   echo "Already present   : enabledPlugins[togi@togi]"
 else
-  jq_edit --arg p "$PLUGIN_ENTRY" '.enabledPlugins += [$p]'
+  jq_edit --arg p "$PLUGIN_ENTRY" '.enabledPlugins[$p] = true'
   echo "Added             : enabledPlugins[togi@togi]"
 fi
 
