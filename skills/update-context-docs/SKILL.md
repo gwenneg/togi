@@ -1,65 +1,30 @@
 ---
 name: update-context-docs
 description: Review captured friction events, apply them to context docs, and open a pull request
-allowedTools:
-  - Bash(bash *)
+allowed-tools:
   - Bash(find *)
+  - Bash(rm -rf .claude/friction/)
   - Bash(git add *)
   - Bash(git branch *)
   - Bash(git checkout *)
   - Bash(git fetch *)
   - Bash(git rev-parse *)
+  - Bash(git commit *)
+  - Bash(git push *)
+  - Bash(gh pr create)
   - Edit
   - Read
 ---
 
 # Instructions
 
-## Phase 1: Binary version check
-
-Run:
-
-```bash
-.claude/bin/togi install --check
-```
-
-- Exit code 0: binary is up to date. Continue to Phase 2.
-- Exit code 2: a newer version is available. The output shows the installed and latest
-  versions. Use `AskUserQuestion` to inform the user:
-
-  > A newer version of togi is available (see above).
-  >
-  > The binary handles friction capture and security validation. Updating will:
-  > 1. Download the new binary from the GitHub release
-  > 2. Verify its build attestation (`gh attestation verify`)
-  > 3. Verify its SHA-256 checksum
-  > 4. Replace `.claude/bin/togi` with the new version
-  >
-  > Update now?
-
-  Options: **Update now (recommended)** / **Continue without updating**
-
-  If the user selects **Continue without updating**, proceed to Phase 2.
-
-  If the user selects **Update now**, run:
-
-  ```bash
-  .claude/bin/togi install
-  ```
-
-  Show the full output to the user. If the command fails, stop and report the error.
-  Otherwise continue to Phase 2.
-
-- If the binary does not exist or the command fails for any other reason, skip this phase
-  and continue to Phase 2.
-
-## Phase 2: Read friction events
+## Phase 1: Read friction events
 
 Read all `*.md` files from `.claude/friction/` recursively (each session has its own subfolder: `.claude/friction/{session-id}/{slug}.md`). If none exist, report "No friction events to process." and stop.
 
 For each file, extract the YAML frontmatter fields (`type`, `doc_gap`, `date`) and the body paragraph. Group events by `doc_gap` — the named file is the edit target.
 
-## Phase 3: User exclusion
+## Phase 2: User exclusion
 
 Print a numbered list of all events:
 ```
@@ -72,16 +37,28 @@ Then use `AskUserQuestion` with a single question: "Enter the numbers of any eve
 
 Events the user excludes are tracked as "Skipped by user" and must not result in any doc edits.
 
-## Phase 4: Create branch
+## Phase 3: Create branch
 
-Detect the default branch with `git rev-parse --abbrev-ref origin/HEAD` and check whether `friction/update-context-docs-YYYY-MM-DD` already exists with `git branch --list` (increment a numeric suffix until the name is unique, e.g. `-2`, `-3`). Then run:
+Detect the default branch with:
+
+```bash
+git rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's|^origin/||'
+```
+
+If that returns empty (origin/HEAD not configured, common in manually-cloned repos), fall back to:
+
+```bash
+git remote show origin 2>/dev/null | awk '/HEAD branch:/ {print $NF}'
+```
+
+If both fail, default to `main`. Then check whether `friction/update-context-docs-YYYY-MM-DD` already exists with `git branch --list` (increment a numeric suffix until the name is unique, e.g. `-2`, `-3`). Then run:
 
 ```bash
 git fetch origin
 git checkout -b friction/update-context-docs-YYYY-MM-DD origin/<default-branch>
 ```
 
-## Phase 5: Apply edits
+## Phase 4: Apply edits
 
 For each non-excluded event:
 - Only edit files that exist
@@ -95,17 +72,17 @@ For each non-excluded event:
 - Do not reorganize existing content
 - Do not push a file past 200 lines — consolidate instead of appending
 
-## Phase 6: Propose eval cases (optional)
+## Phase 5: Propose eval cases (optional)
 
 If a `promptfoo.yaml` or similar eval config exists, propose a new test case for each friction event backed by multiple events whose expected behavior can be verified with a `contains`/`not-contains` assertion rather than LLM judgment. Each case needs: `description`, `vars.task`, and at least one `contains`/`not-contains` or `llm-rubric` assertion.
 
-## Phase 7: Clean up
+## Phase 6: Clean up
 
-Delete the session subfolders for all processed friction events from `.claude/friction/`. Each subfolder is named after the session ID; deleting it removes all friction files for that session at once.
+Delete only the individual friction files that were **processed** (not excluded by the user) in Phase 2. After deleting individual files, also delete any session subdirectories under `.claude/friction/` that are now empty. Do not delete session subdirectories that still contain excluded files — those should appear in the next run of `/togi:update-context-docs`.
 
-## Phase 8: Commit and open a PR
+## Phase 7: Commit and open a PR
 
-Stage only the files that were actually edited in Phase 5 — do not use `git add -A`.
+Stage only the files that were actually edited in Phase 4 — do not use `git add -A`.
 List each modified file explicitly:
 
 ```bash
