@@ -11,8 +11,8 @@ allowed-tools:
 ```bash
 mkdir -p .claude
 [ -f .claude/settings.local.json ] || echo '{}' > .claude/settings.local.json
-jq '.env.TOGI_ENABLED = "0"' .claude/settings.local.json > .claude/settings.local.json.tmp \
-  && mv .claude/settings.local.json.tmp .claude/settings.local.json
+jq '.env.TOGI_ENABLED = "0"' .claude/settings.local.json > .claude/settings.local.json.tmp
+mv .claude/settings.local.json.tmp .claude/settings.local.json
 ```
 
 Then output:
