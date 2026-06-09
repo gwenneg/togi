@@ -2,7 +2,7 @@
 name: setup
 description: Install togi — session hooks that capture AI friction events and remind developers to improve context docs
 allowed-tools:
-  - Bash(bash setup.sh)
+  - Bash(setup.sh)
   - Bash(git add *)
   - Bash(git branch *)
   - Bash(git checkout *)
@@ -40,7 +40,7 @@ Output the following text verbatim before taking any other action in this phase:
 Run:
 
 ```bash
-bash setup.sh
+setup.sh
 ```
 
 Show the output to the user verbatim. If the command fails, stop and report the error.
