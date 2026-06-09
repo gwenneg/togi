@@ -2,17 +2,17 @@
 # SessionStart hook — reminds Claude to process accumulated friction when the event threshold is reached.
 # Disable with TOGI_ENABLED=0 in .claude/settings.local.json.
 
-FRICTION_DIR="${CLAUDE_PROJECT_DIR:-.}/.claude/friction"
-if ! command -v jq &>/dev/null; then
-  echo '{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "Togi: jq is not installed — friction capture is inactive."}, "systemMessage": "Togi: jq is not installed. Install it to enable friction capture."}'
-  exit 0
-fi
-
 if [ "${TOGI_ENABLED:-1}" != "1" ]; then
-  jq -n '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: "Togi friction capture is inactive (TOGI_ENABLED=0). Do not write friction files."}}'
+  echo '{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "Togi friction capture is inactive. Do not write friction files."}}'
   exit 0
 fi
 
+if ! command -v jq &>/dev/null; then
+  echo '{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "Togi friction capture is inactive. Do not write friction files."}, "systemMessage": "Togi: jq is not installed. Install it to enable friction capture."}'
+  exit 0
+fi
+
+FRICTION_DIR="${CLAUDE_PROJECT_DIR:-.}/.claude/friction"
 mkdir -p "$FRICTION_DIR"
 
 SESSION_ID=$(jq -r '.session_id // "unknown"')
