@@ -22,7 +22,7 @@ allowed-tools:
 
 Output the following text verbatim before taking any other action:
 
-> **Togi** (研ぎ, to sharpen) is a friction-driven feedback loop for AI context docs. During each session, Claude detects friction events — corrections, clarifications, mistakes, tool denials — and writes them directly to `.claude/friction/` as they occur. Once enough sessions accumulate, a startup reminder prompts the team to run `/togi:update-context-docs`, which turns those events into doc improvements via a pull request.
+> **Togi** (研ぎ, to sharpen) is a friction-driven feedback loop for AI context docs. During each session, Claude detects friction events — corrections, clarifications, mistakes, tool denials — and writes them directly to `.claude/friction/` as they occur. Once enough friction events accumulate, a startup reminder prompts the team to run `/togi:update-context-docs`, which turns those events into doc improvements via a pull request.
 >
 > **Before proceeding, read this carefully:**
 >
@@ -40,7 +40,7 @@ Output the following text verbatim before taking any other action in this phase:
 >
 > **Friction capture is enabled by default for everyone on the team.** Events are written as local markdown files to `.claude/friction/` (git-ignored) — no transcript is sent anywhere, no separate API call is made. Any developer can opt out personally with `/togi:disable`, which writes to `.claude/settings.local.json` (not committed).
 >
-> You can set `TOGI_SESSION_THRESHOLD` (default: `3`) to control how many sessions accumulate before the startup reminder appears.
+> You can set `TOGI_EVENT_THRESHOLD` (default: `5`) to control how many friction events accumulate before the startup reminder appears.
 
 ### 1. settings.json
 
@@ -80,7 +80,8 @@ Write `.claude/capture-friction.md` with the following content (skip if the file
 ```markdown
 # Togi — Friction Capture
 
-Write a friction event file **before your next response** whenever any of the following occur.
+**Before planning your response**, check whether this message is a friction event (types listed below).
+If it is, apply the filters and write the friction file before responding.
 
 A friction event is one of:
 - **correction** — you produced something the user had to fix
@@ -96,15 +97,14 @@ Skip user errors, one-off scope changes, transient errors, and case-specific cor
 
 ## How to write a friction file
 
-Read `.claude/friction/active-session` to get the session directory name, then write to `.claude/friction/{session_dir}/`.
-
-Use a short kebab-case filename describing the event: `missing-auth-docs.md`, `wrong-test-command.md`.
+Write to `.claude/friction/` using a filename that starts with the current timestamp followed by a short kebab-case description: `20260609T143022-missing-auth-docs.md`, `20260609T143022-wrong-test-command.md`.
 
 \`\`\`
 ---
 type: correction|clarification|mistake|denial
 doc_gap: <relative path from project root to the target doc file>
 date: <YYYY-MM-DD>
+session: <content of .claude/friction/active-session>
 ---
 
 <One paragraph: what went wrong, what project-specific knowledge was missing,
