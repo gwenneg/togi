@@ -69,7 +69,7 @@ Allow friction writes without prompting if missing:
 
 ```bash
 jq -e '.permissions.allow | index("Write(.claude/friction/*)")' .claude/settings.json > /dev/null 2>&1 || \
-  jq '.permissions.allow = ((.permissions.allow // []) + ["Write(.claude/friction/**)"])' \
+  jq '.permissions.allow = ((.permissions.allow // []) + ["Write(/.claude/friction/**)"])' \
     .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
 ```
 
