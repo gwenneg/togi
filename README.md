@@ -4,25 +4,26 @@
 
 Togi is a [Claude Code](https://claude.ai/code) plugin that captures the moments when an AI coding agent stumbles — corrections, clarifications, wrong assumptions, denied tool calls — and turns them into context doc improvements via pull requests.
 
-Each of those stumbles is a **friction event**: a signal that the shared context docs failed. Togi captures them as they happen during each session, accumulates them silently, and reminds the team to process them when enough have built up. Processing means editing the docs that caused the friction, so the same mistake doesn't recur.
+Each of those stumbles is a **friction event**: a signal that the shared context docs failed. Togi captures them invisibly at session end, accumulates them silently, and reminds the team to process them when enough have built up. Processing means editing the docs that caused the friction, so the same mistake doesn't recur.
 
 ## How it works
 
 ```
-end of each turn → Stop hook prompts Claude → friction event written to .claude/friction/
-                                                ↓
-next session start → session-start.sh → "12 friction events. Update the docs."
-                                                ↓
-developer runs /togi:update-context-docs → docs edited → PR opened
-                                                ↓
-PR merged → agent reads better docs → fewer stumbles next session
+session ends → session-end.sh → forked headless sweep → friction files written to .claude/friction/
+                                                                    ↓
+                               next session start → session-start.sh → "12 friction events. Update the docs."
+                                                                    ↓
+                               developer runs /togi:update-context-docs → docs edited → PR opened
+                                                                    ↓
+                               PR merged → agent reads better docs → fewer stumbles next session
 ```
 
-## Prerequisites
+## Requirements
 
+- macOS or Linux
 - [Claude Code](https://claude.ai/code)
 - [gh CLI](https://cli.github.com/) — authenticated with `gh auth login`
-- [jq](https://jqlang.org/)
+- [jq](https://jqlang.org/) on PATH
 
 ## Installation
 
@@ -44,11 +45,11 @@ The togi skills (`/togi:setup`, `/togi:disable`, `/togi:enable`, `/togi:update-c
 
 The setup skill will:
 
-1. Explain what togi does and ask for consent
-2. Configure the marketplace entry and plugin enablement in your project
+1. Explain what togi does, disclose the cost model, and ask for consent
+2. Configure the marketplace entry, plugin enablement, and sweep consent flag in your project
 3. Open a pull request with all changes committed
 
-The SessionStart and Stop hooks are part of the plugin itself and require no project-side configuration.
+The SessionStart and SessionEnd hooks are part of the plugin itself and require no project-side configuration.
 
 ### After setup (team)
 
@@ -94,18 +95,39 @@ All configuration is via environment variables, set in `.claude/settings.json` (
 |---|---|---|
 | `TOGI_ENABLED` | `1` | Set to `0` to disable friction capture (personal: use `.claude/settings.local.json`) |
 | `TOGI_EVENT_THRESHOLD` | `5` | Friction events before the startup reminder appears |
+| `TOGI_MIN_TURNS` | `3` | Minimum user turns in a session before it is swept |
+
+## Cost
+
+At the end of each qualifying session, togi launches one headless `claude -p --resume --fork-session` call to sweep the session for friction events. This is billed to your Anthropic API account (or drawn from your subscription's usage limits).
+
+**Typical cost: $0.05–$0.20 per session.** This low cost comes from the prompt cache: Claude Code refreshes the cache on every turn, and togi launches the sweep immediately at session end — so the session's tokens are replayed at roughly 10% of normal input price.
+
+**The cache rule:** the prompt cache has a 5-minute TTL from the last exchange, refreshed every turn. An active hour-long session sweeps cheap. Only a session left idle more than ~4 minutes before quitting loses its cache — in that case togi uses a Haiku fallback (the cache is model-scoped; Haiku cannot read an Opus or Fable cache, and cold Haiku costs roughly one-fifth of cold Opus).
+
+**Short sessions are skipped.** Sessions with fewer than `TOGI_MIN_TURNS` user turns produce no sweep and no cost.
+
+**Subscription users:** the sweep draws from your plan's usage limits rather than billing dollars.
 
 ## Privacy
 
-Claude detects and writes friction events directly to `.claude/friction/` during sessions as they occur. Nothing is sent to the Anthropic API on your behalf — the capture is done in-session by Claude itself, using observations from the conversation you are already having. Friction files are local and git-ignored. Any developer can opt out with `/togi:disable`.
+The sweep resumes your session via `claude -p --resume --fork-session` on your own account. Your session transcript is not sent to any third party — the sweep runs as a headless Claude Code process under your own credentials, exactly as if you had resumed the session yourself. The original session transcript is left byte-identical after the fork.
+
+Friction files are written locally to `.claude/friction/` (git-ignored). Any developer can opt out with `/togi:disable`.
+
+**Known limitation:** sessions ended by crash or SIGKILL are not swept. Recurring doc gaps in those sessions will be caught on later sessions.
 
 ## Supply chain
 
 Togi is distributed as a Claude Code plugin via a GitHub-hosted marketplace. Skills, hooks, and scripts are version-controlled in this repository. To verify what you have installed, inspect the source at [github.com/gwenneg/togi](https://github.com/gwenneg/togi).
 
+See [docs/design.md](docs/design.md) for the design rationale and alternatives considered.
+
 ## Cutting a release
 
 Push to `main`. The togi marketplace entry sets `autoUpdate: true`, so users receive changes automatically on their next Claude Code session.
+
+**Note for existing users upgrading from v0.3.0:** v0.4.0 replaces per-turn capture with an end-of-session sweep that makes one API call per session (typically $0.05–$0.20). Capture is paused until a team member re-runs `/togi:setup` to opt in to the new cost model.
 
 ## License
 

@@ -1,10 +1,12 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SessionStart hook — reminds Claude to process accumulated friction when the event threshold is reached.
 
+# Early exit: headless session launched by session-end.sh — showing a reminder to a
+# non-interactive process makes no sense and would trigger another SessionEnd sweep.
+[ "${TOGI_HEADLESS:-0}" = "1" ] && exit 0
+
 # Early exit: developer opted out via TOGI_ENABLED=0 in .claude/settings.local.json.
-if [ "${TOGI_ENABLED:-1}" != "1" ]; then
-  exit 0
-fi
+[ "${TOGI_ENABLED:-1}" = "1" ] || exit 0
 
 # Early exit: jq is required to parse stdin and produce valid JSON output.
 if ! command -v jq &>/dev/null; then
