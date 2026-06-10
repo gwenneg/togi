@@ -46,6 +46,9 @@ PROMPT=$(sed -e "s|{{SESSION_ID}}|${SESSION_ID}|g" \
 
 # --fork-session is REQUIRED (verified): without it the sweep is appended into the
 # user's session history. nohup + & so quitting Claude Code is never delayed.
+LOG=/dev/null
+[ "${TOGI_DEBUG:-0}" = "1" ] && LOG=/tmp/togi-debug.log
+
 nohup env TOGI_HEADLESS=1 claude -p --resume "$SESSION_ID" --fork-session "${MODEL_ARGS[@]}" \
   --allowedTools "Write(.claude/friction/**)" \
-  "$PROMPT" >/dev/null 2>&1 &
+  "$PROMPT" >>"$LOG" 2>&1 &
