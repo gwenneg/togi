@@ -26,19 +26,19 @@ Output the following text verbatim before taking any other action:
 >
 > **Before proceeding, read this carefully:**
 >
-> **What this installs.** This phase configures your project: it adds the togi marketplace entry and plugin to `.claude/settings.json`, writes the friction capture instructions to `.claude/capture-friction.md`, imports them into `CLAUDE.md`, and updates `.gitignore`. The SessionStart hook that fires `session-start.sh` at each session is managed by the plugin itself via `hooks/hooks.json` — nothing is written to your project for that.
+> **What this installs.** This phase configures your project: it adds the togi marketplace entry and plugin to `.claude/settings.json` and updates `.gitignore`. The SessionStart and Stop hooks are managed by the plugin itself via `hooks/hooks.json` — nothing is written to your project for those.
 
 Use `AskUserQuestion` to ask: **"Do you want to proceed with the installation?"** Options: **Yes, proceed** / **No, cancel**.
 
 If the user selects No, stop.
 
-## Phase 2: Configure settings.json, capture-friction.md, CLAUDE.md, and .gitignore
+## Phase 2: Configure settings.json and .gitignore
 
 Output the following text verbatim before taking any other action in this phase:
 
-> This phase configures `.claude/settings.json` with the togi marketplace registration and plugin enablement, writes the friction capture instructions to `.claude/capture-friction.md` and imports them into `CLAUDE.md`, and updates `.gitignore` with the togi allowlist. All existing content is preserved.
+> This phase configures `.claude/settings.json` with the togi marketplace registration and plugin enablement, and updates `.gitignore` with the togi allowlist. All existing content is preserved.
 >
-> **Friction capture is enabled by default for everyone on the team.** Events are written as local markdown files to `.claude/friction/` (git-ignored) — no transcript is sent anywhere, no separate API call is made. Any developer can opt out personally with `/togi:disable`, which writes to `.claude/settings.local.json` (not committed).
+> **Friction capture is enabled by default for everyone on the team.** Events are written as local markdown files to `.claude/friction/` (git-ignored). At the end of every turn, the Stop hook prompts Claude to review the turn for friction and write any qualifying events before stopping. Any developer can opt out personally with `/togi:disable`, which writes to `.claude/settings.local.json` (not committed).
 >
 > You can set `TOGI_EVENT_THRESHOLD` (default: `5`) to control how many friction events accumulate before the startup reminder appears.
 
@@ -77,80 +77,25 @@ jq -e '.permissions.allow | index("Bash(date*)")' .claude/settings.json > /dev/n
     .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
 ```
 
-### 2. capture-friction.md
-
-Write `.claude/capture-friction.md` with the following content (skip if the file already exists and is identical):
-
-```markdown
-# Togi — Friction Capture
-
-**Before planning your response**, check whether this message is a friction event (types listed below).
-If it is, apply the filters and write the friction file before responding.
-
-A friction event is one of:
-- **correction** — you produced something the user had to fix
-- **clarification** — the user explained something the docs should have covered
-- **mistake** — you made a wrong assumption about the codebase
-- **denial** — a tool call was blocked by a permission rule
-
-Before writing a file, apply both filters:
-1. Would a concrete rule in a specific project doc have prevented this?
-2. Would the same issue likely recur on a similar task?
-
-Skip user errors, one-off scope changes, transient errors, and case-specific corrections.
-
-## How to write a friction file
-
-Get the current timestamp by running `date +%Y%m%dT%H%M%S` via Bash before writing the file.
-
-Write to `.claude/friction/` using a filename that starts with that timestamp followed by a short kebab-case description: `20260609T143022-missing-auth-docs.md`, `20260609T143022-wrong-test-command.md`.
-
-\`\`\`
----
-type: correction|clarification|mistake|denial
-doc_gap: <relative path from project root to the target doc file>
-date: <YYYY-MM-DD>
-session: <content of .claude/friction/active-session>
----
-
-<One paragraph: what went wrong, what project-specific knowledge was missing,
-and the concrete rule or example that would prevent recurrence.>
-\`\`\`
-
-Only write friction events to `.claude/friction/` — never elsewhere.
-```
-
-### 3. CLAUDE.md
-
-If the line `@.claude/capture-friction.md` is not already present in `CLAUDE.md`, append these two lines to the end of the file:
-
-```
-<!-- togi: do not remove the line below — it enables automatic friction capture for this project -->
-@.claude/capture-friction.md
-```
-
-### 4. .gitignore
+### 2. .gitignore
 
 Append any of the following lines that are not already present in `.gitignore`:
 
 ```
 /.claude/*
 !/.claude/settings.json
-!/.claude/capture-friction.md
 ```
 
 ### Report
 
-After completing all steps, print a summary of what was added vs. already present for each of the four files.
+After completing all steps, print a summary of what was added vs. already present for each of the two files.
 
 If any step fails, stop and report the error.
 
 ## Phase 3: Commit and open a PR
 
 Stage only these files:
-- `.claude/capture-friction.md`
 - `.claude/settings.json`
-- `CLAUDE.md`
 - `.gitignore`
 
 Create a branch named `chore/setup-togi` (add `-2`, `-3`, etc. if it already exists).
@@ -159,8 +104,8 @@ Commit with message: `chore: set up togi`
 
 Push and open a PR with a body that includes:
 
-- What was configured: togi marketplace entry and plugin enablement in `.claude/settings.json`, friction capture instructions (`.claude/capture-friction.md` imported into `CLAUDE.md`), and `.gitignore` entries
-- How friction capture works: during sessions, Claude detects friction events and writes them to `.claude/friction/` as they occur — no end-of-session API call, no transcript sent anywhere. The SessionStart hook is part of the togi plugin and fires automatically without any project-side configuration
+- What was configured: togi marketplace entry and plugin enablement in `.claude/settings.json`, and `.gitignore` entries
+- How friction capture works: at the end of every turn, the Stop hook prompts Claude to review the turn for friction events (corrections, clarifications, mistakes, denials) and write any that qualify to `.claude/friction/` before stopping — no transcript is sent anywhere, no separate API call is made outside the session. The SessionStart and Stop hooks are part of the togi plugin and fire automatically without any project-side configuration
 - Opt-out instruction: run `/togi:disable` at any time (personal, not committed)
 
 Include the standard `Generated with Claude Code` footer.

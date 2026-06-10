@@ -9,9 +9,9 @@ Each of those stumbles is a **friction event**: a signal that the shared context
 ## How it works
 
 ```
-during session → Claude detects friction → events written to .claude/friction/
+end of each turn → Stop hook prompts Claude → friction event written to .claude/friction/
                                                 ↓
-next session start → session-start.sh → "5 sessions, 12 stumbles. Update the docs."
+next session start → session-start.sh → "12 friction events. Update the docs."
                                                 ↓
 developer runs /togi:update-context-docs → docs edited → PR opened
                                                 ↓
@@ -45,10 +45,10 @@ The togi skills (`/togi:setup`, `/togi:disable`, `/togi:enable`, `/togi:update-c
 The setup skill will:
 
 1. Explain what togi does and ask for consent
-2. Configure the marketplace entry, plugin enablement, and friction capture instructions in your project
+2. Configure the marketplace entry and plugin enablement in your project
 3. Open a pull request with all changes committed
 
-The SessionStart hook fires `session-start.sh` automatically at each session — it is part of the plugin itself and requires no project-side configuration.
+The SessionStart and Stop hooks are part of the plugin itself and require no project-side configuration.
 
 ### After setup (team)
 
@@ -93,7 +93,7 @@ All configuration is via environment variables, set in `.claude/settings.json` (
 | Variable | Default | Description |
 |---|---|---|
 | `TOGI_ENABLED` | `1` | Set to `0` to disable friction capture (personal: use `.claude/settings.local.json`) |
-| `TOGI_SESSION_THRESHOLD` | `3` | Sessions with unprocessed friction before the startup reminder appears |
+| `TOGI_EVENT_THRESHOLD` | `5` | Friction events before the startup reminder appears |
 
 ## Privacy
 
