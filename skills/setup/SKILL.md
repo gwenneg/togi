@@ -22,11 +22,17 @@ allowed-tools:
 
 Output the following text verbatim before taking any other action:
 
-> **Togi** (研ぎ, to sharpen) is a friction-driven feedback loop for AI context docs. During each session, Claude detects friction events — corrections, clarifications, mistakes, tool denials — and writes them directly to `.claude/friction/` as they occur. Once enough friction events accumulate, a startup reminder prompts the team to run `/togi:update-context-docs`, which turns those events into doc improvements via a pull request.
+> **Togi** (研ぎ, to sharpen) is a friction-driven feedback loop for AI context docs. At the end of each session, togi resumes the session headlessly to detect friction events — corrections, clarifications, mistakes, tool denials — and writes them to `.claude/friction/`. Once enough friction events accumulate, a startup reminder prompts the team to run `/togi:update-context-docs`, which turns those events into doc improvements via a pull request.
 >
 > **Before proceeding, read this carefully:**
 >
-> **What this installs.** This phase configures your project: it adds the togi marketplace entry and plugin to `.claude/settings.json` and updates `.gitignore`. The SessionStart and Stop hooks are managed by the plugin itself via `hooks/hooks.json` — nothing is written to your project for those.
+> **What this installs.** This phase configures your project: it adds the togi marketplace entry and plugin to `.claude/settings.json` and updates `.gitignore`. The SessionStart and SessionEnd hooks are managed by the plugin itself via `hooks/hooks.json` — nothing is written to your project for those.
+>
+> **Cost.** At the end of each session with at least 3 user turns, togi launches a headless `claude -p --resume --fork-session` call to sweep the session for friction events. This is billed to your Anthropic API account (or drawn from your subscription's usage limits). Typical cost: **$0.05–$0.20 per session** when launched promptly (warm prompt cache). Sessions left idle more than 4 minutes before quitting use a Haiku fallback to cap the cold-cache cost. Short sessions (under 3 turns) are skipped entirely.
+>
+> **Privacy.** The sweep resumes your session via the `claude` CLI on your own account. Your session transcript is not sent to any third party — the sweep runs as a headless Claude Code process under your own credentials, exactly as if you had resumed the session yourself.
+>
+> Any developer can opt out with `/togi:disable`.
 
 Use `AskUserQuestion` to ask: **"Do you want to proceed with the installation?"** Options: **Yes, proceed** / **No, cancel**.
 
@@ -38,9 +44,9 @@ Output the following text verbatim before taking any other action in this phase:
 
 > This phase configures `.claude/settings.json` with the togi marketplace registration and plugin enablement, and updates `.gitignore` with the togi allowlist. All existing content is preserved.
 >
-> **Friction capture is enabled by default for everyone on the team.** Events are written as local markdown files to `.claude/friction/` (git-ignored). At the end of every turn, the Stop hook prompts Claude to review the turn for friction and write any qualifying events before stopping. Any developer can opt out personally with `/togi:disable`, which writes to `.claude/settings.local.json` (not committed).
+> **Friction capture is enabled by default for everyone on the team.** Events are written as local markdown files to `.claude/friction/` (git-ignored). At the end of each qualifying session, the SessionEnd hook launches a headless sweep to review the session for friction and write any qualifying events. Any developer can opt out personally with `/togi:disable`, which writes to `.claude/settings.local.json` (not committed).
 >
-> You can set `TOGI_EVENT_THRESHOLD` (default: `5`) to control how many friction events accumulate before the startup reminder appears.
+> You can set `TOGI_EVENT_THRESHOLD` (default: `5`) to control how many friction events accumulate before the startup reminder appears. You can set `TOGI_MIN_TURNS` (default: `3`) to control the minimum number of user turns required before a session is swept.
 
 ### 1. settings.json
 
@@ -62,18 +68,6 @@ Enable the plugin if missing:
 ```bash
 jq -e '."enabledPlugins"."togi@togi" == true' .claude/settings.json > /dev/null 2>&1 || \
   jq '."enabledPlugins"."togi@togi" = true' \
-    .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
-```
-
-Allow friction writes and date lookups without prompting if missing:
-
-```bash
-jq -e '.permissions.allow | index("Write(/.claude/friction/**)")' .claude/settings.json > /dev/null 2>&1 || \
-  jq '.permissions.allow = ((.permissions.allow // []) + ["Write(/.claude/friction/**)"])' \
-    .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
-
-jq -e '.permissions.allow | index("Bash(date*)")' .claude/settings.json > /dev/null 2>&1 || \
-  jq '.permissions.allow = ((.permissions.allow // []) + ["Bash(date*)"])' \
     .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
 ```
 
@@ -105,7 +99,7 @@ Commit with message: `chore: set up togi`
 Push and open a PR with a body that includes:
 
 - What was configured: togi marketplace entry and plugin enablement in `.claude/settings.json`, and `.gitignore` entries
-- How friction capture works: at the end of every turn, the Stop hook prompts Claude to review the turn for friction events (corrections, clarifications, mistakes, denials) and write any that qualify to `.claude/friction/` before stopping — no transcript is sent anywhere, no separate API call is made outside the session. The SessionStart and Stop hooks are part of the togi plugin and fire automatically without any project-side configuration
+- How friction capture works: at the end of each qualifying session (≥3 user turns), the SessionEnd hook launches a headless `claude -p --resume --fork-session` sweep to review the session for friction events (corrections, clarifications, mistakes, denials) and write any that qualify to `.claude/friction/`. Typical cost: $0.05–$0.20 per session (warm prompt cache). The SessionStart and SessionEnd hooks are part of the togi plugin and fire automatically without any project-side configuration
 - Opt-out instruction: run `/togi:disable` at any time (personal, not committed)
 
 Include the standard `Generated with Claude Code` footer.

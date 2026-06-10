@@ -3,7 +3,7 @@ name: update-context-docs
 description: Review captured friction events, apply them to context docs, and open a pull request
 allowed-tools:
   - Bash(find *)
-  - Bash(rm -rf .claude/friction/)
+  - Bash(rm .claude/friction/*)
   - Bash(git add *)
   - Bash(git branch *)
   - Bash(git checkout *)
@@ -20,18 +20,21 @@ allowed-tools:
 
 ## Phase 1: Read friction events
 
-Read all `*.md` files from `.claude/friction/` recursively (each session has its own subfolder: `.claude/friction/{session-id}/{slug}.md`). If none exist, report "No friction events to process." and stop.
+Read all `*.md` files from `.claude/friction/`.
+If none exist, report "No friction events to process." and stop.
 
-For each file, extract the YAML frontmatter fields (`type`, `doc_gap`, `date`) and the body paragraph. Group events by `doc_gap` — the named file is the edit target.
+For each file, extract the YAML frontmatter fields (`type`, `doc_gap`, `date`, `captured_by`, `cache`) and the body paragraph. Group events by `doc_gap` — the named file is the edit target.
 
 ## Phase 2: User exclusion
 
 Print a numbered list of all events:
 ```
 Events to be processed:
-  1. one-sentence summary of what friction it captured
+  1. [correction] YYYY-MM-DD — one-sentence summary (captured_by: <model>, cache: warm|cold)
   2. ...
 ```
+
+Include `captured_by` and `cache` for each event — cold-cache or Haiku-captured events are lower-confidence judgments and are the most likely exclusion candidates.
 
 Then use `AskUserQuestion` with a single question: "Enter the numbers of any events to exclude (comma-separated), or proceed with all." Provide one option — "Proceed with all" — and rely on the "Other" free-text input for exclusions.
 
@@ -78,7 +81,13 @@ If a `promptfoo.yaml` or similar eval config exists, propose a new test case for
 
 ## Phase 6: Clean up
 
-Delete only the individual friction files that were **processed** (not excluded by the user) in Phase 2. After deleting individual files, also delete any session subdirectories under `.claude/friction/` that are now empty. Do not delete session subdirectories that still contain excluded files — those should appear in the next run of `/togi:update-context-docs`.
+Delete only the individual friction files that were **processed** (not excluded by the user) in Phase 2. Delete each file individually:
+
+```bash
+rm .claude/friction/<filename>.md
+```
+
+Do not delete files that were excluded by the user — those should appear in the next run of `/togi:update-context-docs`.
 
 ## Phase 7: Commit and open a PR
 
