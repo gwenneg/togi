@@ -53,6 +53,7 @@ FAKE_EOF
   local payload; payload="$(printf '{"session_id":"%s","transcript_path":"%s"}' "$session_id" "$transcript")"
 
   # Run the hook. Export test paths so nohup'd fake claude inherits them.
+  # CLAUDE_PROJECT_DIR is set so the --allowedTools absolute path is predictable.
   TOGI_TEST_ARGV="$argv_file" \
   TOGI_TEST_STDIN="$stdin_file" \
   PATH="$fake_bin:$PATH" \
@@ -61,6 +62,7 @@ FAKE_EOF
   TOGI_DEBUG=0 \
   TOGI_MIN_TURNS=3 \
   CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
+  CLAUDE_PROJECT_DIR="$tmpdir" \
     bash "$SCRIPT" <<< "$payload"
 
   # Wait up to 5 s for the nohup'd fake claude to write its output files.
@@ -83,7 +85,7 @@ FAKE_EOF
   grep -qx -- "$session_id"    "$argv_file" || fail "session_id missing from argv"
   grep -qx -- '--fork-session' "$argv_file" || fail "--fork-session missing from argv"
   grep -qx -- '--allowedTools' "$argv_file" || fail "--allowedTools missing from argv"
-  grep -qxF 'Write(.claude/friction/**)' "$argv_file" || fail "tool value missing from argv"
+  grep -qxF "Write($tmpdir/.claude/friction/**)" "$argv_file" || fail "tool value missing from argv (expected absolute path Write($tmpdir/.claude/friction/**))"
 
   # The prompt must NOT appear in argv (variadic swallow regression).
   grep -qF "$PROMPT_SENTINEL" "$argv_file" && fail "prompt text found in argv — variadic swallow bug" || true
