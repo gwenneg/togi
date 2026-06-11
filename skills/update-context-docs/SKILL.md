@@ -11,7 +11,7 @@ allowed-tools:
   - Bash(git rev-parse *)
   - Bash(git commit *)
   - Bash(git push *)
-  - Bash(gh pr create)
+  - Bash(gh pr create *)
   - Edit
   - Read
 ---

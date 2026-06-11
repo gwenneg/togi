@@ -48,7 +48,7 @@ FAKE_EOF
   done
 
   local session_id="togi-test-abc123"
-  local payload; payload="$(printf '{"session_id":"%s","transcript_path":"%s"}' "$session_id" "$transcript")"
+  local payload; payload="$(printf '{"session_id":"%s","transcript_path":"%s","reason":"prompt_input_exit"}' "$session_id" "$transcript")"
 
   # CLAUDE_PROJECT_DIR is set so the friction dir path is predictable.
   TOGI_TEST_ARGV="$argv_file" \
@@ -91,7 +91,7 @@ FAKE_EOF
   # The sweep must deny all action-capable tools: headless -p inherits permission
   # allow rules from settings, and deny rules are the verified way to override them.
   grep -qx -- '--disallowedTools' "$argv_file" || fail "--disallowedTools missing from argv"
-  grep -qx -- 'Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Task' "$argv_file" \
+  grep -qx -- 'Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Task,Read,Glob,Grep' "$argv_file" \
     || fail "deny list missing from argv"
 
   # --- stdin assertions ---

@@ -6,14 +6,16 @@ allowed-tools:
   - Read
   - Edit
   - Bash(mkdir*)
+  - Bash(touch .claude/*)
   - Bash(jq*)
+  - Bash(mv .claude/*)
   - Bash(grep*)
   - Bash(git add *)
   - Bash(git branch *)
   - Bash(git checkout *)
   - Bash(git commit *)
   - Bash(git push *)
-  - Bash(gh pr create)
+  - Bash(gh pr create *)
 ---
 
 # Instructions
@@ -26,9 +28,9 @@ Output the following text verbatim before taking any other action:
 >
 > **Before proceeding, read this carefully:**
 >
-> **What this installs.** This phase configures your project: it adds the togi marketplace entry and plugin to `.claude/settings.json` and updates `.gitignore`. The SessionStart and SessionEnd hooks are managed by the plugin itself via `hooks/hooks.json` — nothing is written to your project for those.
+> **What this installs.** This phase configures your project: it adds the togi marketplace entry and plugin to `.claude/settings.json` and updates `.gitignore`. The SessionStart and SessionEnd hooks are managed by the plugin itself via `hooks/hooks.json` — nothing is written to your project for those. Those hooks are already active: friction capture and the end-of-session sweep run by default (`TOGI_ENABLED` defaults to `1`) from the moment the plugin is installed — this setup configures the project for the team; it does not switch capture on or off.
 >
-> **Cost.** At the end of every session, togi launches a headless `claude -p --resume --fork-session` call to sweep the session for friction events. This is billed to your Anthropic API account (or drawn from your subscription's usage limits). Typical cost: **$0.05–$0.20 per session** when launched promptly (warm prompt cache). Sessions left idle more than 4 minutes before quitting use a Haiku fallback to cap the cold-cache cost.
+> **Cost.** At the end of every session, togi launches a headless `claude -p --resume --fork-session` call to sweep the session for friction events. This is billed to your Anthropic API account (or drawn from your subscription's usage limits). Typical cost: **$0.05–$0.20 per session** when launched promptly (warm prompt cache). Sessions whose last exchange is more than 290 seconds old at session end (just under the cache's 5-minute TTL) use a Haiku fallback to cap the cold-cache cost.
 >
 > **Privacy.** The sweep resumes your session via the `claude` CLI on your own account. Your session transcript is not sent to any third party — the sweep runs as a headless Claude Code process under your own credentials, exactly as if you had resumed the session yourself.
 >
@@ -52,26 +54,20 @@ Output the following text verbatim before taking any other action in this phase:
 
 ```bash
 mkdir -p .claude
-[ -f .claude/settings.json ] || echo '{}' > .claude/settings.json
+touch .claude/settings.json
 ```
 
-Add the togi marketplace entry if missing:
+Set the togi marketplace entry and enable the plugin. This is idempotent — re-setting values that are already present is harmless, and all other content is preserved (`jq -s` with `.[0] // {}` handles a missing or empty settings file):
 
 ```bash
-jq -e '.extraKnownMarketplaces.togi' .claude/settings.json > /dev/null 2>&1 || {
-  jq '.extraKnownMarketplaces.togi = {"source": {"source": "github", "repo": "gwenneg/togi"}}' \
-    .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
-}
+jq -s '(.[0] // {})
+  | .extraKnownMarketplaces.togi = {"source": {"source": "github", "repo": "gwenneg/togi"}}
+  | .enabledPlugins."togi@togi" = true' \
+  .claude/settings.json > .claude/settings.json.tmp
+mv .claude/settings.json.tmp .claude/settings.json
 ```
 
-Enable the plugin if missing:
-
-```bash
-jq -e '."enabledPlugins"."togi@togi" == true' .claude/settings.json > /dev/null 2>&1 || {
-  jq '."enabledPlugins"."togi@togi" = true' \
-    .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
-}
-```
+For the report at the end of this phase, check what was already present before writing (e.g. `jq -e '.extraKnownMarketplaces.togi' .claude/settings.json` and `jq -e '.enabledPlugins."togi@togi"' .claude/settings.json`).
 
 ### 2. .gitignore
 
