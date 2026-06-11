@@ -69,40 +69,46 @@ CACHE_STATE="warm"
 [ "$AGE" -gt 240 ] && MODEL_ARGS=(--model haiku) && CACHE_STATE="cold"
 log "session-end.sh" "session age=${AGE}s cache=${CACHE_STATE} model_args='${MODEL_ARGS[*]:-<session default>}'"
 
-# {{CACHE}} is templated by the hook (it made the staleness decision);
-# captured_by is self-reported by the sweep, which knows its own resolved model id.
-PROMPT=$(sed -e "s|{{SESSION_ID}}|${SESSION_ID}|g" \
-             -e "s|{{TIMESTAMP}}|$(date +%Y%m%dT%H%M%S)|g" \
-             -e "s|{{DATE}}|$(date +%Y-%m-%d)|g" \
-             -e "s|{{CACHE}}|${CACHE_STATE}|g" \
-  "${CLAUDE_PLUGIN_ROOT}/assets/prompts/capture-friction.md")
-log "session-end.sh" "prompt templated (${#PROMPT} bytes)"
+PROMPT=$(cat "${CLAUDE_PLUGIN_ROOT}/assets/prompts/capture-friction.md")
+log "session-end.sh" "prompt loaded (${#PROMPT} bytes)"
 
 # --fork-session is REQUIRED (verified): without it the sweep is appended into the
-# user's session history. nohup + & so quitting Claude Code is never delayed.
-#
-# Prompt must go via stdin, never as a positional arg after --allowedTools.
-# --allowedTools is variadic: a trailing positional is consumed as a second tool name,
-# leaving --resume with no prompt at all, which falls into the "continue a deferred tool"
-# code path and fails with "No deferred tool marker found".
-log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID --fork-session ${MODEL_ARGS[*]:-} --allowedTools Write(${CLAUDE_PROJECT_DIR:-.}/.claude/friction/**))"
+# user's session history.
+# Prompt must go via stdin — --allowedTools is variadic and swallows a trailing
+# positional arg, producing a promptless --resume that fails with "No deferred tool found".
+# No --allowedTools needed: the sweep outputs JSON; bash (not claude) writes the files.
+log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID --fork-session ${MODEL_ARGS[*]:-})"
 
-if [ "$LOG" != "/dev/null" ]; then
-  # Debug mode: capture claude stdout/stderr separately so each line can be tagged
-  # with its source in the log. Runs in a subshell so the hook returns immediately.
-  (
-    _out="$(mktemp /tmp/togi-claude-out.XXXXXX)"
-    _err="$(mktemp /tmp/togi-claude-err.XXXXXX)"
-    printf '%s' "$PROMPT" | nohup env TOGI_HEADLESS=1 claude -p --resume "$SESSION_ID" --fork-session \
-      "${MODEL_ARGS[@]}" --allowedTools "Write(${CLAUDE_PROJECT_DIR:-.}/.claude/friction/**)" \
-      >"$_out" 2>"$_err"
-    _exit=$?
-    log "session-end.sh" "claude exited with status $_exit"
-    while IFS= read -r _line; do log "claude:response" "$_line"; done < "$_out"
-    while IFS= read -r _line; do log "claude:error"    "$_line"; done < "$_err"
-    rm -f "$_out" "$_err"
-  ) &
-else
+(
+  _out="$(mktemp /tmp/togi-claude-out.XXXXXX)"
+  _err="$(mktemp /tmp/togi-claude-err.XXXXXX)"
   printf '%s' "$PROMPT" | nohup env TOGI_HEADLESS=1 claude -p --resume "$SESSION_ID" --fork-session \
-    "${MODEL_ARGS[@]}" --allowedTools "Write(${CLAUDE_PROJECT_DIR:-.}/.claude/friction/**)" >/dev/null 2>&1 &
-fi
+    "${MODEL_ARGS[@]}" >"$_out" 2>"$_err"
+  _exit=$?
+  log "session-end.sh" "claude exited with status $_exit"
+  while IFS= read -r _line; do log "claude:error"    "$_line"; done < "$_err"
+  while IFS= read -r _line; do log "claude:response" "$_line"; done < "$_out"
+
+  # Parse the JSON array and write one friction file per qualifying event.
+  _count=$(jq 'if type == "array" then length else 0 end' "$_out" 2>/dev/null || echo 0)
+  log "session-end.sh" "sweep returned $_count qualifying event(s)"
+
+  if [ "$_count" -gt 0 ]; then
+    _friction_dir="${CLAUDE_PROJECT_DIR:-.}/.claude/friction"
+    mkdir -p "$_friction_dir"
+    while IFS= read -r _ev; do
+      _type=$(printf '%s' "$_ev"    | jq -r '.type        // "unknown"')
+      _slug=$(printf '%s' "$_ev"    | jq -r '.slug        // "event"')
+      _doc_gap=$(printf '%s' "$_ev" | jq -r '.doc_gap     // ""')
+      _by=$(printf '%s' "$_ev"      | jq -r '.captured_by // "unknown"')
+      _body=$(printf '%s' "$_ev"    | jq -r '.body        // ""')
+      _file="${_friction_dir}/$(date +%Y%m%dT%H%M%S)-${_slug}.md"
+      printf -- '---\ntype: %s\ndoc_gap: %s\ndate: %s\nsession: %s\ncaptured_by: %s\ncache: %s\n---\n\n%s\n' \
+        "$_type" "$_doc_gap" "$(date +%Y-%m-%d)" "$SESSION_ID" "$_by" "$CACHE_STATE" "$_body" \
+        > "$_file"
+      log "session-end.sh" "wrote $_file"
+    done < <(jq -c '.[]' "$_out" 2>/dev/null)
+  fi
+
+  rm -f "$_out" "$_err"
+) &
