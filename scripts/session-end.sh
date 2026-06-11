@@ -49,6 +49,9 @@ PROMPT=$(sed -e "s|{{SESSION_ID}}|${SESSION_ID}|g" \
 LOG=/dev/null
 [ "${TOGI_DEBUG:-0}" = "1" ] && LOG=/tmp/togi-debug.log
 
-nohup env TOGI_HEADLESS=1 claude -p --resume "$SESSION_ID" --fork-session "${MODEL_ARGS[@]}" \
-  --allowedTools "Write(.claude/friction/**)" \
-  "$PROMPT" >>"$LOG" 2>&1 &
+# Prompt must go via stdin, never as a positional arg after --allowedTools.
+# --allowedTools is variadic: a trailing positional is consumed as a second tool name,
+# leaving --resume with no prompt at all, which falls into the "continue a deferred tool"
+# code path and fails with "No deferred tool marker found".
+printf '%s' "$PROMPT" | nohup env TOGI_HEADLESS=1 claude -p --resume "$SESSION_ID" --fork-session \
+  "${MODEL_ARGS[@]}" --allowedTools "Write(.claude/friction/**)" >>"$LOG" 2>&1 &
