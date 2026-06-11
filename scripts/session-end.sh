@@ -85,7 +85,7 @@ log "session-end.sh" "prompt templated (${#PROMPT} bytes)"
 # --allowedTools is variadic: a trailing positional is consumed as a second tool name,
 # leaving --resume with no prompt at all, which falls into the "continue a deferred tool"
 # code path and fails with "No deferred tool marker found".
-log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID --fork-session ${MODEL_ARGS[*]:-} --allowedTools Write(.claude/friction/**))"
+log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID --fork-session ${MODEL_ARGS[*]:-} --allowedTools Write(${CLAUDE_PROJECT_DIR:-.}/.claude/friction/**))"
 
 if [ "$LOG" != "/dev/null" ]; then
   # Debug mode: capture claude stdout/stderr separately so each line can be tagged
@@ -94,7 +94,7 @@ if [ "$LOG" != "/dev/null" ]; then
     _out="$(mktemp /tmp/togi-claude-out.XXXXXX)"
     _err="$(mktemp /tmp/togi-claude-err.XXXXXX)"
     printf '%s' "$PROMPT" | nohup env TOGI_HEADLESS=1 claude -p --resume "$SESSION_ID" --fork-session \
-      "${MODEL_ARGS[@]}" --allowedTools "Write(.claude/friction/**)" \
+      "${MODEL_ARGS[@]}" --allowedTools "Write(${CLAUDE_PROJECT_DIR:-.}/.claude/friction/**)" \
       >"$_out" 2>"$_err"
     _exit=$?
     log "session-end.sh" "claude exited with status $_exit"
@@ -104,5 +104,5 @@ if [ "$LOG" != "/dev/null" ]; then
   ) &
 else
   printf '%s' "$PROMPT" | nohup env TOGI_HEADLESS=1 claude -p --resume "$SESSION_ID" --fork-session \
-    "${MODEL_ARGS[@]}" --allowedTools "Write(.claude/friction/**)" >/dev/null 2>&1 &
+    "${MODEL_ARGS[@]}" --allowedTools "Write(${CLAUDE_PROJECT_DIR:-.}/.claude/friction/**)" >/dev/null 2>&1 &
 fi
