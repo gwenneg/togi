@@ -155,27 +155,29 @@ This posture is not a complete defense, and the gaps point to complementary cont
 
 ### Cutting a release
 
-Releases are deliberate — pushing to `main` does **not** ship code to users. To cut one:
+Releases are deliberate — pushing to `main` does **not** ship code to users. `plugin.json` carries **no `version` field on purpose**, so the plugin's identity resolves to the pinned commit SHA. That makes the SHA do double duty — it is both the integrity pin *and* the update cache key — so a release is a **single bump** with no second knob to keep in sync:
 
-1. Land all changes on `main` and bump `version` in `.claude-plugin/plugin.json`.
-2. Tag the release commit for human reference and push the tag:
+1. Land all changes on `main`. The final commit is the release commit.
+2. Tag the release commit and push the tag (human-readable naming only — the pin resolves the SHA, not the tag):
    ```bash
    git tag -s vX.Y.Z -m "togi vX.Y.Z" && git push origin vX.Y.Z
    ```
-   Prefer a **signed** tag (`-s`) and protect `v*` tags with a ruleset — good hygiene, though the pin itself does not depend on tag immutability since it resolves the SHA.
-3. Set `sha` in `.claude-plugin/marketplace.json` to the full 40-char release commit and commit it to `main`. **This bump is the actual release action.** Pinning to the SHA (not the tag) is what makes the release tamper-evident.
+   Prefer a **signed** tag (`-s`) and protect `v*` tags with a ruleset as hygiene.
+3. Set `sha` in `.claude-plugin/marketplace.json` to the full 40-char SHA of the release commit, and commit it to `main`. **This single bump is the release**: changing the pinned SHA changes the plugin's identity (so Claude Code detects an update) *and* fixes the exact, immutable code users run (tamper-evidence).
 4. Publish a [GitHub Release](https://github.com/gwenneg/togi/releases) with notes (`gh release create vX.Y.Z --generate-notes`) so users have a discovery signal and a changelog to evaluate the update against.
 
-> **Verify against your Claude Code version before relying on this.** `sha` pinning in plugin `source` is per the plugin-marketplace docs, not a behavior this repo has independently tested; confirm `/plugin install` resolves the pinned commit as expected on the CLI version you support.
+> **Verify against your Claude Code version before relying on this.** With `version` omitted, the plugin identity falls back to the source commit SHA — but whether changing a *pinned* SHA invalidates the cache and delivers new code is **not explicitly documented** (the docs describe SHA-as-version for branch-tracked sources). Confirm a SHA bump actually delivers updated code to an installed client on the CLI version you support; if it does not, restore an explicit `version` in `plugin.json` and bump it each release alongside the SHA.
 
 ### Staying up to date
 
-Because auto-update is off, Claude Code provides **no proactive notification** that a new version exists. To learn about releases, **watch this repository → Releases only** on GitHub. To pull a published update:
+Because auto-update is off, Claude Code gives **no proactive notification** when a new version exists — so to find out, **watch this repository → Releases only** on GitHub. When a release is published, update in two steps:
 
 ```
-/plugin marketplace update         # refresh the catalog from main (gets the new SHA)
-/plugin update togi@togi           # install the plugin at the refreshed SHA
+/plugin marketplace update      # 1. refresh your local catalog from main — picks up the new pinned SHA
+/plugin update togi@togi        # 2. install the plugin at that SHA
 ```
+
+Step 1 is required: until you refresh the catalog, Claude Code has no knowledge that a newer release exists. Step 2 then installs the plugin at the commit the refreshed catalog pins. If Claude Code prompts you to reload afterward, run `/reload-plugins`.
 
 **Note for existing users upgrading from v0.3.0:** v0.4.0 replaces per-turn capture with an end-of-session sweep that makes one API call per session (typically $0.05–$0.20). Capture is paused until a team member re-runs `/togi:setup` to opt in to the new cost model.
 
