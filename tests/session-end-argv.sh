@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Regression test: session-end.sh must deliver the prompt via stdin, not as a positional arg.
-# --allowedTools is variadic; a trailing positional is consumed as a second tool name,
-# leaving --resume promptless and producing "No deferred tool marker found".
+# Regression test: session-end.sh must deliver the prompt via stdin, not as a positional arg,
+# and must write friction files from the JSON output returned by claude (not from claude directly).
 
 set -euo pipefail
 
@@ -12,7 +11,6 @@ PROMPT_SENTINEL="Review this entire session for friction events"
 
 PASS=0
 FAIL=0
-# Per-test failure counter (global so fail() can write it without a subshell).
 TEST_FAILURES=0
 
 fail() { echo "  FAIL: $1"; TEST_FAILURES=$((TEST_FAILURES + 1)); }
@@ -28,21 +26,21 @@ run_test() {
   local argv_file="$tmpdir/argv"
   local stdin_file="$tmpdir/stdin"
 
-  # Fake claude: record argv (one arg per line) and full stdin, then exit 0.
-  # Uses TOGI_TEST_ARGV / TOGI_TEST_STDIN env vars so the paths survive nohup.
+  # Fake claude: record argv and stdin, then output a JSON friction event.
   cat > "$fake_bin/claude" << 'FAKE_EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$@" > "$TOGI_TEST_ARGV"
 cat > "$TOGI_TEST_STDIN"
+printf '[{"type":"clarification","slug":"test-friction-event","doc_gap":"CLAUDE.md","captured_by":"test-model","body":"Test body."}]\n'
 FAKE_EOF
   chmod +x "$fake_bin/claude"
 
   # Sample transcript: ≥3 user entries with a controlled timestamp.
   local ts
   if [ "$ts_age" = "fresh" ]; then
-    ts="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"   # now → warm cache
+    ts="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
   else
-    ts="2020-01-01T00:00:00.000Z"              # ancient → cold cache → haiku
+    ts="2020-01-01T00:00:00.000Z"
   fi
   local transcript="$tmpdir/transcript.jsonl"
   for i in 1 2 3; do
@@ -52,8 +50,7 @@ FAKE_EOF
   local session_id="togi-test-abc123"
   local payload; payload="$(printf '{"session_id":"%s","transcript_path":"%s"}' "$session_id" "$transcript")"
 
-  # Run the hook. Export test paths so nohup'd fake claude inherits them.
-  # CLAUDE_PROJECT_DIR is set so the --allowedTools absolute path is predictable.
+  # CLAUDE_PROJECT_DIR is set so the friction dir path is predictable.
   TOGI_TEST_ARGV="$argv_file" \
   TOGI_TEST_STDIN="$stdin_file" \
   PATH="$fake_bin:$PATH" \
@@ -65,7 +62,7 @@ FAKE_EOF
   CLAUDE_PROJECT_DIR="$tmpdir" \
     bash "$SCRIPT" <<< "$payload"
 
-  # Wait up to 5 s for the nohup'd fake claude to write its output files.
+  # Wait up to 5 s for the fake claude to write its argv file.
   local i
   for i in $(seq 1 50); do
     [ -f "$argv_file" ] && break
@@ -79,20 +76,24 @@ FAKE_EOF
     return
   fi
 
+  # Wait up to 5 s more for the subshell to parse JSON and write the friction file.
+  for i in $(seq 1 50); do
+    [ -n "$(find "$tmpdir/.claude/friction" -name '*.md' 2>/dev/null | head -1)" ] && break
+    sleep 0.1
+  done
+
   # --- argv assertions ---
   grep -qx -- '-p'             "$argv_file" || fail "-p missing from argv"
   grep -qx -- '--resume'       "$argv_file" || fail "--resume missing from argv"
   grep -qx -- "$session_id"    "$argv_file" || fail "session_id missing from argv"
   grep -qx -- '--fork-session' "$argv_file" || fail "--fork-session missing from argv"
-  grep -qx -- '--allowedTools' "$argv_file" || fail "--allowedTools missing from argv"
-  grep -qxF "Write($tmpdir/.claude/friction/**)" "$argv_file" || fail "tool value missing from argv (expected absolute path Write($tmpdir/.claude/friction/**))"
-
-  # The prompt must NOT appear in argv (variadic swallow regression).
-  grep -qF "$PROMPT_SENTINEL" "$argv_file" && fail "prompt text found in argv — variadic swallow bug" || true
+  # --allowedTools must NOT appear — claude no longer writes files directly.
+  grep -qx -- '--allowedTools' "$argv_file" && fail "--allowedTools found in argv (should be absent)" || true
 
   # --- stdin assertions ---
+  # The prompt must NOT appear in argv (variadic swallow regression).
+  grep -qF "$PROMPT_SENTINEL" "$argv_file" && fail "prompt text found in argv — variadic swallow bug" || true
   grep -qF "$PROMPT_SENTINEL" "$stdin_file" || fail "prompt sentinel missing from stdin"
-  grep -qF "$session_id"      "$stdin_file" || fail "session_id not substituted in stdin"
 
   # --- model selection ---
   if [ "$expect_haiku" = "yes" ]; then
@@ -100,6 +101,17 @@ FAKE_EOF
     grep -qx -- 'haiku'   "$argv_file" || fail "haiku missing from argv for cold session"
   else
     ! grep -qx -- '--model' "$argv_file" || fail "unexpected --model in argv for warm session"
+  fi
+
+  # --- friction file assertions ---
+  local friction_file
+  friction_file="$(find "$tmpdir/.claude/friction" -name '*-test-friction-event.md' 2>/dev/null | head -1)"
+  [ -n "$friction_file" ] || fail "friction file not created from JSON output"
+  if [ -n "$friction_file" ]; then
+    grep -qF 'type: clarification' "$friction_file" || fail "wrong type in friction file"
+    grep -qF "session: $session_id"  "$friction_file" || fail "session_id not in friction file"
+    grep -qF 'doc_gap: CLAUDE.md'   "$friction_file" || fail "doc_gap not in friction file"
+    grep -qF 'Test body.'           "$friction_file" || fail "body not in friction file"
   fi
 
   rm -rf "$tmpdir"
