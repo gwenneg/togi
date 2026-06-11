@@ -98,7 +98,7 @@ All configuration is via environment variables, set in `.claude/settings.json` (
 
 ## Cost
 
-At the end of each qualifying session, togi launches one headless `claude -p --resume --fork-session` call to sweep the session for friction events. This is billed to your Anthropic API account (or drawn from your subscription's usage limits).
+At the end of each session, togi launches one headless `claude -p --resume --fork-session` call to sweep the session for friction events. This is billed to your Anthropic API account (or drawn from your subscription's usage limits).
 
 **Typical cost: $0.05–$0.20 per session.** This low cost comes from the prompt cache: Claude Code refreshes the cache on every turn, and togi launches the sweep immediately at session end — so the session's tokens are replayed at roughly 10% of normal input price.
 

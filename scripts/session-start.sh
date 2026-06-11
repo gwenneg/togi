@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # SessionStart hook — reminds Claude to process accumulated friction when the event threshold is reached.
 
+# No -e: failures are tolerated deliberately (every fallible call has an explicit
+# fallback) and a hook that dies mid-script would fail silently.
+set -uo pipefail
+
 # Logging must be set up first so every early exit can be recorded.
 # shellcheck source=lib/logging.sh
 source "$(dirname "$0")/lib/logging.sh"
@@ -37,7 +41,8 @@ while IFS= read -r _f; do
 done < <(find "$FRICTION_DIR" -maxdepth 1 -name "*.json" 2>/dev/null)
 log "session-start.sh" "friction event count: $EVENT_COUNT (threshold: ${TOGI_EVENT_THRESHOLD:-5})"
 
-if [ "$EVENT_COUNT" -le "${TOGI_EVENT_THRESHOLD:-5}" ]; then
+# -lt: the reminder fires once the count REACHES the threshold (README: default 5).
+if [ "$EVENT_COUNT" -lt "${TOGI_EVENT_THRESHOLD:-5}" ]; then
   log "session-start.sh" "threshold not reached — no reminder"
   exit 0
 fi

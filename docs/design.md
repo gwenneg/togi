@@ -46,4 +46,14 @@ The core problem: detect friction events (corrections, clarifications, mistakes,
 - Prompt cache TTL is 5 minutes from last use (refreshed every turn — an hour-long active session sweeps warm; only idle-then-quit goes cold) and model-scoped (a Haiku sweep can never read an Opus/Fable cache).
 - Blocking Stop-hook `reason` text is always user-visible.
 
+## Sweep tool lockdown (verified 2026-06-11)
+
+- Headless `claude -p` INHERITS permission allow rules from user/project/local settings: in a project whose settings allow `Bash(echo *)`, a plain `-p` session executed Bash without prompting. A prompt injection in swept session content could therefore run any pre-allowed command, unsupervised. The sweep needs zero tools, so all action-capable tools are denied.
+- `--disallowedTools "Bash,Edit,Write,..."` (comma-separated, single arg) denies the listed tools even when settings allow rules match — deny overrides allow. It acts at the permission layer only, so the tool definitions in the API request are unchanged and the warm prompt cache is preserved.
+- `--disallowedTools "*"` is a silent no-op: bare `*` matches no tool name (Bash still executed). Never use it.
+- `--disallowedTools` is variadic like `--allowedTools` — same positional-prompt swallow hazard. Prompt stays on stdin; pass the deny list as one comma-separated argument.
+- `--bare` is unsuitable: per CLI help it restricts auth to `ANTHROPIC_API_KEY`/`apiKeyHelper` (OAuth and keychain never read), which breaks subscription users; and settings files are not in its documented skip list, so it is not shown to bypass inherited allow rules anyway.
+- `--tools ""` would remove tool definitions from the request — tool definitions are part of the cached prefix, so every sweep would run cold, breaking the cost model.
+- Known gap: the deny list covers built-in tools only. MCP tools auto-allowed by project settings (e.g. `enableAllProjectMcpServers`) are not covered — a bare `mcp__*` deny pattern is unverified, and `--strict-mcp-config` would drop MCP tool definitions from the request (cold cache for MCP-using sessions). Revisit if a verified blanket deny becomes available.
+
 Re-verify these when CLI behavior changes.

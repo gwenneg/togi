@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # SessionEnd hook — resumes the ended session headlessly to sweep it for friction events.
 
+# No -e: failures are tolerated deliberately (every fallible call has an explicit
+# fallback) and a hook that dies mid-script would fail silently in the background.
+set -uo pipefail
+
 # Logging must be set up first so every early exit can be recorded.
 # shellcheck source=lib/logging.sh
 source "$(dirname "$0")/lib/logging.sh"
@@ -30,8 +34,23 @@ if ! command -v jq &>/dev/null; then
   exit 0
 fi
 
+SESSION_ID="" TRANSCRIPT=""
 { read -r SESSION_ID; read -r TRANSCRIPT; } < <(jq -r '.session_id, .transcript_path')
 log "session-end.sh" "payload parsed (session_id='$SESSION_ID' transcript_path='$TRANSCRIPT')"
+
+# Validate before use: SESSION_ID is interpolated into --resume and the friction
+# filename, so reject anything that isn't a plain id (also catches jq's "null"
+# when the hook payload is malformed).
+case "$SESSION_ID" in
+  ""|null|*[!A-Za-z0-9-]*)
+    log "session-end.sh" "exit: invalid session_id ('$SESSION_ID') — malformed hook payload"
+    exit 0
+    ;;
+esac
+if [ ! -r "$TRANSCRIPT" ]; then
+  log "session-end.sh" "exit: transcript not readable ('$TRANSCRIPT')"
+  exit 0
+fi
 
 # Prompt cache TTL is 5 min from the LAST exchange and is MODEL-SCOPED.
 # https://platform.claude.com/docs/en/build-with-claude/prompt-caching
@@ -56,14 +75,24 @@ log "session-end.sh" "prompt loaded (${#PROMPT} bytes)"
 # user's session history.
 # Prompt must go via stdin — --allowedTools is variadic and swallows a trailing
 # positional arg, producing a promptless --resume that fails with "No deferred tool found".
-# No --allowedTools needed: the sweep outputs JSON; bash (not claude) writes the files.
-log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID --fork-session ${MODEL_ARGS[*]:-})"
+# The sweep needs no tools (it outputs JSON; bash writes the files), but headless -p
+# INHERITS permission allow rules from user/project/local settings (verified) — a
+# prompt injection in the swept session content could run any pre-allowed command,
+# unsupervised, after the user has quit. Deny rules override allow rules, so deny
+# every action-capable tool. Do NOT swap this for:
+#   --disallowedTools "*"  — matches no tool, silently a no-op (verified)
+#   --tools ""             — removes tool definitions from the API request, changing
+#                            the cached prefix and forcing every sweep cold
+#   --bare                 — auth becomes ANTHROPIC_API_KEY-only, breaking
+#                            subscription (OAuth) users
+DENY_TOOLS="Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Task"
+log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID --fork-session --disallowedTools $DENY_TOOLS ${MODEL_ARGS[*]:-})"
 
 (
   _out="$(mktemp /tmp/togi-claude-out.XXXXXX)"
   _err="$(mktemp /tmp/togi-claude-err.XXXXXX)"
   printf '%s' "$PROMPT" | nohup env TOGI_HEADLESS=1 claude -p --resume "$SESSION_ID" --fork-session \
-    "${MODEL_ARGS[@]}" >"$_out" 2>"$_err"
+    --disallowedTools "$DENY_TOOLS" ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} >"$_out" 2>"$_err"
   _exit=$?
   log "session-end.sh" "claude exited with status $_exit"
   while IFS= read -r _line; do log "claude:error"    "$_line"; done < "$_err"
