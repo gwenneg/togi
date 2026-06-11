@@ -119,7 +119,7 @@ Friction files are written locally to `.claude/friction/` (git-ignored). Any dev
 
 ## Troubleshooting
 
-**Sweep not running or writing no friction files?** Set `TOGI_DEBUG=1` in `.claude/settings.local.json` (`env` block) to redirect sweep output to `/tmp/togi-debug.log`. This is how the argv/stdin bug was diagnosed.
+**Sweep not running or writing no friction files?** Set `TOGI_DEBUG=1` in `.claude/settings.local.json` (`env` block) to write structured sweep logs to `.claude/togi.log` in the project directory. This is how the argv/stdin bug was diagnosed.
 
 ## Supply chain
 
