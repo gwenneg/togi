@@ -117,6 +117,10 @@ Friction files are written locally to `.claude/friction/` (git-ignored). Any dev
 
 **Known limitation:** sessions ended by crash or SIGKILL are not swept. Recurring doc gaps in those sessions will be caught on later sessions.
 
+## Troubleshooting
+
+**Sweep not running or writing no friction files?** Set `TOGI_DEBUG=1` in `.claude/settings.local.json` (`env` block) to redirect sweep output to `/tmp/togi-debug.log`. This is how the argv/stdin bug was diagnosed.
+
 ## Supply chain
 
 Togi is distributed as a Claude Code plugin via a GitHub-hosted marketplace. Skills, hooks, and scripts are version-controlled in this repository. To verify what you have installed, inspect the source at [github.com/gwenneg/togi](https://github.com/gwenneg/togi).

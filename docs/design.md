@@ -42,6 +42,7 @@ The core problem: detect friction events (corrections, clarifications, mistakes,
 - SessionEnd fires for headless `-p` sessions too (`reason: "other"`) — the sweep child triggers the hook itself, so the recursion guard is load-bearing, not defensive.
 - Env vars set on the spawned child (`TOGI_SWEEP=1`) are visible to the child's hooks (verified in both SessionStart and SessionEnd of the child).
 - `nohup env … claude -p … &` detaches cleanly; the hook returns immediately.
+- `--allowedTools` is a variadic flag: it consumes the next positional argument as a second tool name. A prompt passed as a positional after `--allowedTools` is silently swallowed, leaving `--resume` with no prompt, which falls into the "continue a deferred tool" code path and fails with "No deferred tool marker found". Deliver the prompt via stdin (`printf '%s' "$PROMPT" | claude …`) to avoid this.
 - Prompt cache TTL is 5 minutes from last use (refreshed every turn — an hour-long active session sweeps warm; only idle-then-quit goes cold) and model-scoped (a Haiku sweep can never read an Opus/Fable cache).
 - Blocking Stop-hook `reason` text is always user-visible.
 
