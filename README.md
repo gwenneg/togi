@@ -118,31 +118,64 @@ Friction files are written locally to `.claude/friction/` (git-ignored). Any dev
 
 **Sweep not running or writing no friction files?** Set `TOGI_DEBUG=1` in `.claude/settings.local.json` (`env` block) to write structured sweep logs to `.claude/togi.log` in the project directory. This is how the argv/stdin bug was diagnosed.
 
-## Supply chain
+## Supply chain & publishing
 
-Togi is distributed as a Claude Code plugin via a GitHub-hosted marketplace. Skills, hooks, and scripts are version-controlled in this repository.
+A Claude Code plugin is not a passive dependency — installing it grants the author a **standing right to execute code on every user's machine**, at every session start and end, with no per-update review (Claude Code shows no diff and asks for no re-approval when plugin hooks change). Claude Code also has **no plugin signing, checksum, or integrity-verification step** in its install path. So the security bar for publishing togi is closer to *running a software-update service* than *shipping a library*. The publishing flow below is built around that fact.
 
-**The plugin code is pinned to a commit SHA.** The marketplace entry sets the plugin `source` to a full commit `sha`, so installing or updating togi fetches the plugin from that exact, immutable commit rather than tracking `main`. A SHA — unlike a tag — cannot be moved or re-pointed, so what you run is fixed until the pin is deliberately bumped. Each release commit also carries a human-readable tag (e.g. [`v0.4.6`](https://github.com/gwenneg/togi/releases/tag/v0.4.6)) for reference. Auto-update is intentionally off, so a new version reaches you only when you explicitly update the plugin. To verify what you are running, compare the pinned SHA in [`marketplace.json`](.claude-plugin/marketplace.json) against the repository history.
+### The model: two layers, each deliberately gated
 
-See [docs/design.md](docs/design.md) for the design rationale and alternatives considered.
+Distribution has two independent layers, and with the choices togi makes, neither tracks "latest" automatically:
 
-## Cutting a release
+1. **The marketplace catalog** ([`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json)) — fetched from `main` when a user adds the marketplace, and refreshed **only** when they explicitly run `/plugin marketplace update`. **Auto-update is off** (Claude Code's default for third-party marketplaces, which togi never overrides), so nothing refreshes it at startup.
+2. **The plugin code** — the catalog pins the plugin `source` to a **full commit `sha`**:
+   ```json
+   "source": { "source": "github", "repo": "gwenneg/togi", "sha": "<40-char commit>" }
+   ```
+   Installing or updating togi fetches the plugin from that exact commit, not from `main`. Each release commit also carries a human-readable tag (e.g. [`v0.4.6`](https://github.com/gwenneg/togi/releases/tag/v0.4.6)) for reference, but the pin resolves the SHA, not the tag.
 
-Releases are deliberate. Pushing to `main` does **not** ship code to users — the marketplace pins the plugin `source` to a commit `sha`, so users keep running the pinned commit until both (a) the pin is bumped and (b) they update the plugin.
+The consequence: **work-in-progress on `main` never reaches users.** A new version reaches them only when (a) the SHA pin is deliberately bumped *and* (b) they choose to refresh the catalog and update the plugin.
 
-To cut a release:
+### Why this design (and why it's the strongest posture available)
+
+The goal is three properties, in priority order:
+
+- **No silent execution.** Auto-update would push whatever is on `main` to every user automatically — an un-recallable channel where a single bad commit (or a compromised account) becomes instant, unsupervised code execution everywhere. Turning auto-update off removes that channel: updates require a human decision on the user's side.
+- **Tamper-evidence / verifiability.** Pinning to a commit `sha` rather than a branch or a tag means git's content-addressing fixes the exact bytes users run. A branch (`"./."`, the default) ships every commit; a tag (`ref`) can be force-moved; a **SHA cannot be moved or re-pointed**. Anyone can verify what they run by comparing the pinned SHA in `marketplace.json` against the repository history and inspecting the tree at that commit. This is the strongest integrity guarantee obtainable in a model where the consumer git-fetches source and the platform offers no signing.
+- **Deliberate, reviewable releases.** Because the SHA bump is an explicit commit to `main`, every release is a single, auditable change rather than an implicit side effect of pushing code.
+
+Given the platform's constraints (no plugin signing, hooks trusted implicitly, source fetched directly from git), **SHA-pin + auto-update-off is the most secure configuration available**: it strictly dominates the alternatives — a relative `"./."` source (tracks `main`, ships everything), a `ref`/tag pin (mutable), or auto-update on (silent) — on every one of the three properties above.
+
+### Honest residual risks
+
+This posture is not a complete defense, and the gaps point to complementary controls (tracked in [`docs/design.md`](docs/design.md)):
+
+- **The pin lives on `main`.** Anyone who can write to `main` — via a compromised account or a merged malicious PR — can rewrite the SHA. Pinning gives deliberate releases and verifiability, **not** protection of `main` itself. That requires account hardening (hardware 2FA, no long-lived tokens), branch protection with required reviews and status checks, and signed commits/tags.
+- **The catalog is an unpinned branch fetch.** When a user refreshes the catalog they pull `main`'s *current* `marketplace.json`, so a rewritten SHA is picked up on their next refresh. This is inherent to the catalog being the update channel; signed + protected `v*` tags and the SHA pin reduce, but do not eliminate, the exposure.
+- **No update notifications.** Claude Code does not tell users when a new version exists (see [Staying up to date](#staying-up-to-date)).
+
+### Cutting a release
+
+Releases are deliberate — pushing to `main` does **not** ship code to users. To cut one:
 
 1. Land all changes on `main` and bump `version` in `.claude-plugin/plugin.json`.
 2. Tag the release commit for human reference and push the tag:
    ```bash
-   git tag -a vX.Y.Z -m "togi vX.Y.Z" && git push origin vX.Y.Z
+   git tag -s vX.Y.Z -m "togi vX.Y.Z" && git push origin vX.Y.Z
    ```
-   Prefer a signed tag (`git tag -s`); protecting `v*` tags with a ruleset is good hygiene, though the pin itself does not depend on tag immutability — it resolves the `sha`.
-3. Set `sha` in `.claude-plugin/marketplace.json` to the full 40-char release commit and commit to `main`. This bump is the actual release action.
+   Prefer a **signed** tag (`-s`) and protect `v*` tags with a ruleset — good hygiene, though the pin itself does not depend on tag immutability since it resolves the SHA.
+3. Set `sha` in `.claude-plugin/marketplace.json` to the full 40-char release commit and commit it to `main`. **This bump is the actual release action.** Pinning to the SHA (not the tag) is what makes the release tamper-evident.
+4. Publish a [GitHub Release](https://github.com/gwenneg/togi/releases) with notes (`gh release create vX.Y.Z --generate-notes`) so users have a discovery signal and a changelog to evaluate the update against.
 
-Users pick up the new version when they update the plugin (`/plugin` → Marketplaces → update, or reinstall).
+> **Verify against your Claude Code version before relying on this.** `sha` pinning in plugin `source` is per the plugin-marketplace docs, not a behavior this repo has independently tested; confirm `/plugin install` resolves the pinned commit as expected on the CLI version you support.
 
-> **Verify against your Claude Code version before relying on this.** `sha` pinning in plugin `source` is per the plugin-marketplace docs; confirm `/plugin install` resolves the pinned commit as expected on the CLI version you support.
+### Staying up to date
+
+Because auto-update is off, Claude Code provides **no proactive notification** that a new version exists. To learn about releases, **watch this repository → Releases only** on GitHub. To pull a published update:
+
+```
+/plugin marketplace update         # refresh the catalog from main (gets the new SHA)
+/plugin update togi@togi           # install the plugin at the refreshed SHA
+```
 
 **Note for existing users upgrading from v0.3.0:** v0.4.0 replaces per-turn capture with an end-of-session sweep that makes one API call per session (typically $0.05–$0.20). Capture is paused until a team member re-runs `/togi:setup` to opt in to the new cost model.
 
