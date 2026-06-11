@@ -57,7 +57,6 @@ FAKE_EOF
   TOGI_ENABLED=1 \
   TOGI_HEADLESS=0 \
   TOGI_DEBUG=0 \
-  TOGI_MIN_TURNS=3 \
   CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
   CLAUDE_PROJECT_DIR="$tmpdir" \
     bash "$SCRIPT" <<< "$payload"
@@ -105,13 +104,15 @@ FAKE_EOF
 
   # --- friction file assertions ---
   local friction_file
-  friction_file="$(find "$tmpdir/.claude/friction" -name '*-test-friction-event.md' 2>/dev/null | head -1)"
-  [ -n "$friction_file" ] || fail "friction file not created from JSON output"
+  friction_file="$(find "$tmpdir/.claude/friction" -name "*.json" 2>/dev/null | head -1)"
+  [ -n "$friction_file" ] || fail "friction JSON file not created from sweep output"
   if [ -n "$friction_file" ]; then
-    grep -qF 'type: clarification' "$friction_file" || fail "wrong type in friction file"
-    grep -qF "session: $session_id"  "$friction_file" || fail "session_id not in friction file"
-    grep -qF 'doc_gap: CLAUDE.md'   "$friction_file" || fail "doc_gap not in friction file"
-    grep -qF 'Test body.'           "$friction_file" || fail "body not in friction file"
+    jq -e '.[0].type == "clarification"'       "$friction_file" >/dev/null 2>&1 || fail "wrong type in friction JSON"
+    jq -e --arg s "$session_id" '.[0].session == $s' "$friction_file" >/dev/null 2>&1 || fail "session_id not in friction JSON"
+    jq -e '.[0].doc_gap == "CLAUDE.md"'        "$friction_file" >/dev/null 2>&1 || fail "doc_gap not in friction JSON"
+    jq -e '.[0].body == "Test body."'          "$friction_file" >/dev/null 2>&1 || fail "body not in friction JSON"
+    jq -e '.[0].cache'                         "$friction_file" >/dev/null 2>&1 || fail "cache not added to friction JSON"
+    jq -e '.[0].date'                          "$friction_file" >/dev/null 2>&1 || fail "date not added to friction JSON"
   fi
 
   rm -rf "$tmpdir"

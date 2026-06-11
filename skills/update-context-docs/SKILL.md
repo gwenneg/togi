@@ -20,10 +20,20 @@ allowed-tools:
 
 ## Phase 1: Read friction events
 
-Read all `*.md` files from `.claude/friction/`.
+Find all `*.json` files in `.claude/friction/`. Each file is a JSON array of events from one session.
 If none exist, report "No friction events to process." and stop.
 
-For each file, extract the YAML frontmatter fields (`type`, `doc_gap`, `date`, `captured_by`, `cache`) and the body paragraph. Group events by `doc_gap` — the named file is the edit target.
+Read each file. Each event object has:
+- `type`: `correction`, `clarification`, `mistake`, or `denial`
+- `slug`: short kebab-case description
+- `doc_gap`: relative path from project root to the target doc file
+- `captured_by`: model that captured the event
+- `cache`: `warm` or `cold` (cold-cache events are lower-confidence)
+- `date`: ISO date
+- `session`: session ID
+- `body`: one paragraph describing the friction and the rule that would prevent recurrence
+
+Flatten all events across files into a single list. Group by `doc_gap` — the named file is the edit target.
 
 ## Phase 2: User exclusion
 
@@ -81,13 +91,11 @@ If a `promptfoo.yaml` or similar eval config exists, propose a new test case for
 
 ## Phase 6: Clean up
 
-Delete only the individual friction files that were **processed** (not excluded by the user) in Phase 2. Delete each file individually:
+Delete all session JSON files that contained processed events — delete the whole file regardless of whether some events were excluded. Excluded events are acceptable losses; recurring friction will surface again in future sessions.
 
 ```bash
-rm .claude/friction/<filename>.md
+rm .claude/friction/<filename>.json
 ```
-
-Do not delete files that were excluded by the user — those should appear in the next run of `/togi:update-context-docs`.
 
 ## Phase 7: Commit and open a PR
 
