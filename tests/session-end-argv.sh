@@ -44,7 +44,7 @@ FAKE_EOF
   fi
   local transcript="$tmpdir/transcript.jsonl"
   for i in 1 2 3; do
-    printf '{"type":"user","timestamp":"%s"}\n' "$ts" >> "$transcript"
+    printf '{"type":"user","timestamp":"%s","message":{"content":"turn %s"}}\n' "$ts" "$i" >> "$transcript"
   done
 
   local session_id="togi-test-abc123"
@@ -77,7 +77,7 @@ FAKE_EOF
 
   # Wait up to 5 s more for the subshell to parse JSON and write the friction file.
   for i in $(seq 1 50); do
-    [ -n "$(find "$tmpdir/.claude/friction" -name '*.md' 2>/dev/null | head -1)" ] && break
+    [ -n "$(find "$tmpdir/.claude/friction" -name '*.json' 2>/dev/null | head -1)" ] && break
     sleep 0.1
   done
 
@@ -88,6 +88,11 @@ FAKE_EOF
   grep -qx -- '--fork-session' "$argv_file" || fail "--fork-session missing from argv"
   # --allowedTools must NOT appear — claude no longer writes files directly.
   grep -qx -- '--allowedTools' "$argv_file" && fail "--allowedTools found in argv (should be absent)" || true
+  # The sweep must deny all action-capable tools: headless -p inherits permission
+  # allow rules from settings, and deny rules are the verified way to override them.
+  grep -qx -- '--disallowedTools' "$argv_file" || fail "--disallowedTools missing from argv"
+  grep -qx -- 'Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Task' "$argv_file" \
+    || fail "deny list missing from argv"
 
   # --- stdin assertions ---
   # The prompt must NOT appear in argv (variadic swallow regression).
