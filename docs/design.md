@@ -57,3 +57,10 @@ The core problem: detect friction events (corrections, clarifications, mistakes,
 - Known gap: the deny list covers built-in tools only. MCP tools auto-allowed by project settings (e.g. `enableAllProjectMcpServers`) are not covered — a bare `mcp__*` deny pattern is unverified, and `--strict-mcp-config` would drop MCP tool definitions from the request (cold cache for MCP-using sessions). Revisit if a verified blanket deny becomes available.
 
 Re-verify these when CLI behavior changes.
+
+## Distribution pinning (2026-06-11)
+
+- The plugin `source` in `.claude-plugin/marketplace.json` is pinned to a full commit `sha`: `{"source": "github", "repo": "gwenneg/togi", "sha": "83fd179..."}`. A relative `"./."` source tracks whatever ref the marketplace catalog was fetched at (effectively `main`); the explicit `github` + `sha` source decouples the plugin code users run from `main`, so WIP on `main` does not reach users. A `sha` is chosen over a `ref` tag because it is immutable — a tag can be force-moved, a commit hash cannot. The matching tag (`v0.4.6`) is kept as a human-readable marker only; the pin resolves the sha.
+- Auto-update is removed everywhere (marketplace.json, the setup skill's `extraKnownMarketplaces` write, README). With auto-update off, third-party marketplaces update only when the user explicitly updates the plugin — the deliberate-release boundary on the consumer side.
+- Residual risk: the pin lives on `main`, so an attacker who controls `main` can rewrite the sha. Pinning buys deliberate releases + verifiability (git content-addressing fixes the bytes once the sha is set), not protection against branch/account compromise — that needs account and branch hardening.
+- Unverified here: that the installed CLI resolves a pinned `sha` plugin source as documented. This came from the plugin-marketplace docs, not a local test. Verify with `/plugin install` before depending on it, and record the result here.

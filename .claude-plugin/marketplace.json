@@ -8,7 +8,7 @@
     {
       "name": "togi",
       "description": "Capture AI agent friction events during sessions and turn them into context doc improvements via pull requests",
-      "source": "./."
+      "source": { "source": "github", "repo": "gwenneg/togi", "sha": "83fd17932a24b7fa8a8b9284d83cd52eaba6d012" }
     }
   ]
 }
