@@ -95,7 +95,6 @@ All configuration is via environment variables, set in `.claude/settings.json` (
 |---|---|---|
 | `TOGI_ENABLED` | `1` | Set to `0` to disable friction capture (personal: use `.claude/settings.local.json`) |
 | `TOGI_EVENT_THRESHOLD` | `5` | Friction events before the startup reminder appears |
-| `TOGI_MIN_TURNS` | `3` | Minimum user turns in a session before it is swept |
 
 ## Cost
 
@@ -104,8 +103,6 @@ At the end of each qualifying session, togi launches one headless `claude -p --r
 **Typical cost: $0.05–$0.20 per session.** This low cost comes from the prompt cache: Claude Code refreshes the cache on every turn, and togi launches the sweep immediately at session end — so the session's tokens are replayed at roughly 10% of normal input price.
 
 **The cache rule:** the prompt cache has a 5-minute TTL from the last exchange, refreshed every turn. An active hour-long session sweeps cheap. Only a session left idle more than ~4 minutes before quitting loses its cache — in that case togi uses a Haiku fallback (the cache is model-scoped; Haiku cannot read an Opus or Fable cache, and cold Haiku costs roughly one-fifth of cold Opus).
-
-**Short sessions are skipped.** Sessions with fewer than `TOGI_MIN_TURNS` user turns produce no sweep and no cost.
 
 **Subscription users:** the sweep draws from your plan's usage limits rather than billing dollars.
 

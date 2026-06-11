@@ -46,7 +46,7 @@ Output the following text verbatim before taking any other action in this phase:
 >
 > **Friction capture is enabled by default for everyone on the team.** Events are written as local markdown files to `.claude/friction/` (git-ignored). At the end of each qualifying session, the SessionEnd hook launches a headless sweep to review the session for friction and write any qualifying events. Any developer can opt out personally with `/togi:disable`, which writes to `.claude/settings.local.json` (not committed).
 >
-> You can set `TOGI_EVENT_THRESHOLD` (default: `5`) to control how many friction events accumulate before the startup reminder appears. You can set `TOGI_MIN_TURNS` (default: `3`) to control the minimum number of user turns required before a session is swept.
+> You can set `TOGI_EVENT_THRESHOLD` (default: `5`) to control how many friction events accumulate before the startup reminder appears.
 
 ### 1. settings.json
 
