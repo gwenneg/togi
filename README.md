@@ -46,10 +46,10 @@ The togi skills (`/togi:setup`, `/togi:disable`, `/togi:enable`, `/togi:update-c
 The setup skill will:
 
 1. Explain what togi does, disclose the cost model, and ask for consent
-2. Configure the marketplace entry, plugin enablement, and sweep consent flag in your project
+2. Configure the marketplace entry and plugin enablement in your project
 3. Open a pull request with all changes committed
 
-The SessionStart and SessionEnd hooks are part of the plugin itself and require no project-side configuration.
+The SessionStart and SessionEnd hooks are part of the plugin itself and require no project-side configuration. They are active as soon as the plugin is installed: friction capture — including the end-of-session sweep — runs by default (`TOGI_ENABLED` defaults to `1`), whether or not `/togi:setup` has been run. Opt out at any time with `/togi:disable`.
 
 ### After setup (team)
 
@@ -93,16 +93,16 @@ All configuration is via environment variables, set in `.claude/settings.json` (
 
 | Variable | Default | Description |
 |---|---|---|
-| `TOGI_ENABLED` | `1` | Set to `0` to disable friction capture (personal: use `.claude/settings.local.json`) |
+| `TOGI_ENABLED` | `1` | The only switch. While `1` (the default), friction capture — including the billed end-of-session sweep — is active. Set to `0` to disable (personal: use `.claude/settings.local.json`) |
 | `TOGI_EVENT_THRESHOLD` | `5` | Friction events before the startup reminder appears |
 
 ## Cost
 
-At the end of each session, togi launches one headless `claude -p --resume --fork-session` call to sweep the session for friction events. This is billed to your Anthropic API account (or drawn from your subscription's usage limits).
+At the end of each session, togi launches one headless `claude -p --resume --fork-session` call to sweep the session for friction events. This is billed to your Anthropic API account (or drawn from your subscription's usage limits). The sweep is enabled by default: it runs from the moment the plugin is installed, with `TOGI_ENABLED=1` (the default) as the only gate.
 
 **Typical cost: $0.05–$0.20 per session.** This low cost comes from the prompt cache: Claude Code refreshes the cache on every turn, and togi launches the sweep immediately at session end — so the session's tokens are replayed at roughly 10% of normal input price.
 
-**The cache rule:** the prompt cache has a 5-minute TTL from the last exchange, refreshed every turn. An active hour-long session sweeps cheap. Only a session left idle more than ~4 minutes before quitting loses its cache — in that case togi uses a Haiku fallback (the cache is model-scoped; Haiku cannot read an Opus or Fable cache, and cold Haiku costs roughly one-fifth of cold Opus).
+**The cache rule:** the prompt cache has a 5-minute TTL from the last exchange, refreshed every turn. An active hour-long session sweeps cheap. Only a session whose last exchange is more than 290 seconds old at session end (just under the 5-minute TTL) is treated as cold — in that case togi uses a Haiku fallback (the cache is model-scoped; Haiku cannot read an Opus or Fable cache, and cold Haiku costs roughly one-fifth of cold Opus).
 
 **Subscription users:** the sweep draws from your plan's usage limits rather than billing dollars.
 
@@ -179,7 +179,7 @@ Because auto-update is off, Claude Code gives **no proactive notification** when
 
 Step 1 is required: until you refresh the catalog, Claude Code has no knowledge that a newer release exists. Step 2 then installs the plugin at the commit the refreshed catalog pins. If Claude Code prompts you to reload afterward, run `/reload-plugins`.
 
-**Note for existing users upgrading from v0.3.0:** v0.4.0 replaces per-turn capture with an end-of-session sweep that makes one API call per session (typically $0.05–$0.20). Capture is paused until a team member re-runs `/togi:setup` to opt in to the new cost model.
+**Note for existing users upgrading from v0.3.0:** v0.4.0 replaces per-turn capture with an end-of-session sweep that makes one API call per session (typically $0.05–$0.20). The sweep is enabled as soon as the updated plugin is installed — `TOGI_ENABLED` defaults to `1` and is the only switch. Any developer can opt out with `/togi:disable`.
 
 ## License
 

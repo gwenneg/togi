@@ -46,6 +46,17 @@ The core problem: detect friction events (corrections, clarifications, mistakes,
 - Prompt cache TTL is 5 minutes from last use (refreshed every turn — an hour-long active session sweeps warm; only idle-then-quit goes cold) and model-scoped (a Haiku sweep can never read an Opus/Fable cache).
 - Blocking Stop-hook `reason` text is always user-visible.
 
+## SessionEnd `reason` values (docs-sourced 2026-06-11 — NOT live-verified)
+
+From the hooks documentation (code.claude.com/docs/en/hooks), unlike the facts above which were tested live: the SessionEnd payload's `reason` field takes one of `clear` (after `/clear`), `resume` (before the session is re-opened with `--resume`/`--continue`), `logout`, `prompt_input_exit`, `bypass_permissions_disabled`, `other`. Only `other` is live-verified here (headless `-p` ends report it — see above).
+
+The sweep skips two of these as non-final ends:
+
+- `resume` — the session is not over; its real exit fires SessionEnd again. Sweeping on resume would bill twice and capture duplicate events for the same session.
+- `bypass_permissions_disabled` — a mid-session mode change, not a termination.
+
+Log live `reason` values (TOGI_DEBUG=1) before relying on any finer distinctions, and re-verify this table when CLI behavior changes.
+
 ## Sweep tool lockdown (verified 2026-06-11)
 
 - Headless `claude -p` INHERITS permission allow rules from user/project/local settings: in a project whose settings allow `Bash(echo *)`, a plain `-p` session executed Bash without prompting. A prompt injection in swept session content could therefore run any pre-allowed command, unsupervised. The sweep needs zero tools, so all action-capable tools are denied.
@@ -54,9 +65,19 @@ The core problem: detect friction events (corrections, clarifications, mistakes,
 - `--disallowedTools` is variadic like `--allowedTools` — same positional-prompt swallow hazard. Prompt stays on stdin; pass the deny list as one comma-separated argument.
 - `--bare` is unsuitable: per CLI help it restricts auth to `ANTHROPIC_API_KEY`/`apiKeyHelper` (OAuth and keychain never read), which breaks subscription users; and settings files are not in its documented skip list, so it is not shown to bypass inherited allow rules anyway.
 - `--tools ""` would remove tool definitions from the request — tool definitions are part of the cached prefix, so every sweep would run cold, breaking the cost model.
+- Read/Glob/Grep are denied too (added 2026-06-11): the sweep needs zero tools, and injected session content could otherwise direct the sweep to read local secrets (`.env`, credentials) into an event `body` — which `update-context-docs` later pushes into a pull request, completing a slow exfiltration channel. WebFetch/WebSearch (the fast channels) were already denied. Docs-sourced, NOT live-verified: the permissions docs state deny rules apply to read-only tools even though those tools normally require no permission prompt.
 - Known gap: the deny list covers built-in tools only. MCP tools auto-allowed by project settings (e.g. `enableAllProjectMcpServers`) are not covered — a bare `mcp__*` deny pattern is unverified, and `--strict-mcp-config` would drop MCP tool definitions from the request (cold cache for MCP-using sessions). Revisit if a verified blanket deny becomes available.
 
 Re-verify these when CLI behavior changes.
+
+## Activation model (decided 2026-06-11)
+
+`TOGI_ENABLED` (default `1`) is the only switch: friction capture — including the billed end-of-session sweep — is active from the moment the plugin is installed. `/togi:setup` configures the project for the team and discloses the cost model; it does not gate capture. Opt-out is per-developer via `/togi:disable` (`TOGI_ENABLED=0` in `.claude/settings.local.json`).
+
+Two gating mechanisms from the v0.4 plan are rejected, not forgotten — do not reintroduce them:
+
+- `TOGI_SWEEP_ENABLED` (project-side consent flag written by setup) — never implemented, decided against.
+- `TOGI_MIN_TURNS` (skip sweeps for sessions below a turn threshold) — shipped in v0.4.0, removed in v0.4.5, stays out.
 
 ## Distribution pinning (2026-06-11)
 
