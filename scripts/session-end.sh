@@ -40,11 +40,11 @@ log "session-end.sh" "payload parsed (session_id='$SESSION_ID' transcript_path='
 # cold Haiku ($1/MTok) beats cold Opus ($5) / Fable ($10). Do NOT "simplify" this
 # to always-Haiku: a Haiku sweep can never read a warm Opus cache.
 # Age is computed in jq (portable) — no BSD/GNU date parsing.
-CACHE_STATE=$(jq -rs '
+CACHE_STATE=$(tail -n 5 "$TRANSCRIPT" | jq -rs '
   [.[].timestamp | values]
   | if length > 0 and (last | now - (sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)) > 290
     then "cold" else "warm" end
-' "$TRANSCRIPT" 2>/dev/null || echo "warm")
+' 2>/dev/null || echo "warm")
 MODEL_ARGS=()
 [ "$CACHE_STATE" = "cold" ] && MODEL_ARGS=(--model haiku)
 log "session-end.sh" "cache=${CACHE_STATE} model_args='${MODEL_ARGS[*]:-<session default>}'"
@@ -85,3 +85,7 @@ log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID -
 
   rm -f "$_out" "$_err"
 ) &
+# Disown so the hook exits immediately. Without this, Claude Code waitpids on all
+# child processes — including background jobs — before releasing the session exit,
+# meaning the user would wait for the entire sweep to complete before quitting.
+disown $!
