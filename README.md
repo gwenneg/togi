@@ -120,13 +120,29 @@ Friction files are written locally to `.claude/friction/` (git-ignored). Any dev
 
 ## Supply chain
 
-Togi is distributed as a Claude Code plugin via a GitHub-hosted marketplace. Skills, hooks, and scripts are version-controlled in this repository. To verify what you have installed, inspect the source at [github.com/gwenneg/togi](https://github.com/gwenneg/togi).
+Togi is distributed as a Claude Code plugin via a GitHub-hosted marketplace. Skills, hooks, and scripts are version-controlled in this repository.
+
+**The plugin code is pinned to a commit SHA.** The marketplace entry sets the plugin `source` to a full commit `sha`, so installing or updating togi fetches the plugin from that exact, immutable commit rather than tracking `main`. A SHA — unlike a tag — cannot be moved or re-pointed, so what you run is fixed until the pin is deliberately bumped. Each release commit also carries a human-readable tag (e.g. [`v0.4.6`](https://github.com/gwenneg/togi/releases/tag/v0.4.6)) for reference. Auto-update is intentionally off, so a new version reaches you only when you explicitly update the plugin. To verify what you are running, compare the pinned SHA in [`marketplace.json`](.claude-plugin/marketplace.json) against the repository history.
 
 See [docs/design.md](docs/design.md) for the design rationale and alternatives considered.
 
 ## Cutting a release
 
-Push to `main`. The togi marketplace entry sets `autoUpdate: true`, so users receive changes automatically on their next Claude Code session.
+Releases are deliberate. Pushing to `main` does **not** ship code to users — the marketplace pins the plugin `source` to a commit `sha`, so users keep running the pinned commit until both (a) the pin is bumped and (b) they update the plugin.
+
+To cut a release:
+
+1. Land all changes on `main` and bump `version` in `.claude-plugin/plugin.json`.
+2. Tag the release commit for human reference and push the tag:
+   ```bash
+   git tag -a vX.Y.Z -m "togi vX.Y.Z" && git push origin vX.Y.Z
+   ```
+   Prefer a signed tag (`git tag -s`); protecting `v*` tags with a ruleset is good hygiene, though the pin itself does not depend on tag immutability — it resolves the `sha`.
+3. Set `sha` in `.claude-plugin/marketplace.json` to the full 40-char release commit and commit to `main`. This bump is the actual release action.
+
+Users pick up the new version when they update the plugin (`/plugin` → Marketplaces → update, or reinstall).
+
+> **Verify against your Claude Code version before relying on this.** `sha` pinning in plugin `source` is per the plugin-marketplace docs; confirm `/plugin install` resolves the pinned commit as expected on the CLI version you support.
 
 **Note for existing users upgrading from v0.3.0:** v0.4.0 replaces per-turn capture with an end-of-session sweep that makes one API call per session (typically $0.05–$0.20). Capture is paused until a team member re-runs `/togi:setup` to opt in to the new cost model.
 

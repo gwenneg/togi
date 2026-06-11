@@ -59,7 +59,7 @@ Add the togi marketplace entry if missing:
 
 ```bash
 jq -e '.extraKnownMarketplaces.togi' .claude/settings.json > /dev/null 2>&1 || {
-  jq '.extraKnownMarketplaces.togi = {"source": {"source": "github", "repo": "gwenneg/togi"}, "autoUpdate": true}' \
+  jq '.extraKnownMarketplaces.togi = {"source": {"source": "github", "repo": "gwenneg/togi"}}' \
     .claude/settings.json > .claude/settings.json.tmp && mv .claude/settings.json.tmp .claude/settings.json
 }
 ```
