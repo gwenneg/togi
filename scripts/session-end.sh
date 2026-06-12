@@ -6,7 +6,6 @@
 set -uo pipefail
 
 # Logging must be set up first so every early exit can be recorded.
-# shellcheck source=lib/logging.sh
 source "$(dirname "$0")/lib/logging.sh"
 
 log "session-end.sh" "hook started (TOGI_ENABLED=${TOGI_ENABLED:-1} TOGI_HEADLESS=${TOGI_HEADLESS:-0})"
