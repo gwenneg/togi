@@ -38,6 +38,8 @@ Read each file. Each event object has:
 - `session`: session ID
 - `body`: one paragraph describing the friction and the rule that would prevent recurrence
 - `misleading_doc` (optional): a doc that was in the session's context and contained wrong or outdated guidance — high-confidence, the sweep watched that doc mislead
+- `sweep_cost_usd` (optional): measured cost of the sweep that captured this session's events — all events from one session share the value
+- `sweep_cache_read_tokens` (optional): measured prompt-cache reads for that sweep. Cost-model telemetry only, **not** a confidence signal: a cache miss replays identical context at full price, so it does not lower capture quality (only the model downgrade recorded in `cache` does)
 
 Events captured by older togi versions carry `doc_gap` instead of `misleading_doc`. Treat `doc_gap` as a low-confidence placement hint, never a binding target: it was guessed at sweep time, when the sweep had no tools to see the repo's doc tree, and may name a file that has never existed.
 
@@ -182,6 +184,10 @@ Commit with message `docs: improve context docs from friction capture`, push, an
 | Skipped by user | N |
 
 **Docs improved:** `file1.md`, `file2.md` (new)
+
+**Sweep cost:** $X.XX across N session(s)
 ```
+
+  Sum `sweep_cost_usd` once per session — events from the same session share one sweep — and count only sessions carrying the field; omit the line entirely if none do.
 
 - The standard `Generated with Claude Code` footer

@@ -26,14 +26,18 @@ run_test() {
   local argv_file="$tmpdir/argv"
   local stdin_file="$tmpdir/stdin"
 
-  # Fake claude: record argv and stdin, then output one valid friction event
-  # plus two malformed ones (unknown type; missing body) that the schema gate
-  # in session-end.sh must drop.
+  # Fake claude: record argv and stdin, then emit a result envelope (as
+  # --output-format json does) whose .result string holds one valid friction
+  # event plus two malformed ones (unknown type; missing body) that the schema
+  # gate in session-end.sh must drop. The envelope carries telemetry that must
+  # be stamped into the friction file.
   cat > "$fake_bin/claude" << 'FAKE_EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$@" > "$TOGI_TEST_ARGV"
 cat > "$TOGI_TEST_STDIN"
-printf '[{"type":"clarification","slug":"test-friction-event","misleading_doc":"CLAUDE.md","captured_by":"test-model","body":"Test body."},{"type":"bogus","slug":"unknown-type","captured_by":"test-model","body":"x"},{"type":"correction","slug":"missing-body","captured_by":"test-model"}]\n'
+cat << 'ENVELOPE'
+{"result":"[{\"type\":\"clarification\",\"slug\":\"test-friction-event\",\"misleading_doc\":\"CLAUDE.md\",\"captured_by\":\"test-model\",\"body\":\"Test body.\"},{\"type\":\"bogus\",\"slug\":\"unknown-type\",\"captured_by\":\"test-model\",\"body\":\"x\"},{\"type\":\"correction\",\"slug\":\"missing-body\",\"captured_by\":\"test-model\"}]","total_cost_usd":0.0123,"usage":{"cache_read_input_tokens":4567},"is_error":false,"duration_ms":1500,"session_id":"fork-session-id"}
+ENVELOPE
 FAKE_EOF
   chmod +x "$fake_bin/claude"
 
@@ -95,6 +99,9 @@ FAKE_EOF
   grep -qx -- '--disallowedTools' "$argv_file" || fail "--disallowedTools missing from argv"
   grep -qx -- 'Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Task,Read,Glob,Grep' "$argv_file" \
     || fail "deny list missing from argv"
+  # The result envelope (telemetry + .result extraction) requires JSON output.
+  grep -qx -- '--output-format' "$argv_file" || fail "--output-format missing from argv"
+  grep -qx -- 'json'            "$argv_file" || fail "json missing from argv (--output-format value)"
 
   # --- stdin assertions ---
   # The prompt must NOT appear in argv (variadic swallow regression).
@@ -121,6 +128,8 @@ FAKE_EOF
     jq -e '.[0].body == "Test body."'          "$friction_file" >/dev/null 2>&1 || fail "body not in friction JSON"
     jq -e '.[0].cache'                         "$friction_file" >/dev/null 2>&1 || fail "cache not added to friction JSON"
     jq -e '.[0].date'                          "$friction_file" >/dev/null 2>&1 || fail "date not added to friction JSON"
+    jq -e '.[0].sweep_cost_usd == 0.0123'      "$friction_file" >/dev/null 2>&1 || fail "sweep_cost_usd not stamped from envelope"
+    jq -e '.[0].sweep_cache_read_tokens == 4567' "$friction_file" >/dev/null 2>&1 || fail "sweep_cache_read_tokens not stamped from envelope"
   fi
 
   rm -rf "$tmpdir"

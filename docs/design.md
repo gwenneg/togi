@@ -43,7 +43,7 @@ The core problem: detect friction events (corrections, clarifications, mistakes,
 - Env vars set on the spawned child (`TOGI_SWEEP=1`) are visible to the child's hooks (verified in both SessionStart and SessionEnd of the child).
 - `nohup env … claude -p … &` detaches cleanly; the hook returns immediately.
 - `--allowedTools` is a variadic flag: it consumes the next positional argument as a second tool name. A prompt passed as a positional after `--allowedTools` is silently swallowed, leaving `--resume` with no prompt, which falls into the "continue a deferred tool" code path and fails with "No deferred tool marker found". Deliver the prompt via stdin (`printf '%s' "$PROMPT" | claude …`) to avoid this.
-- Prompt cache TTL is 5 minutes from last use (refreshed every turn — an hour-long active session sweeps warm; only idle-then-quit goes cold) and model-scoped (a Haiku sweep can never read an Opus/Fable cache).
+- Prompt cache TTL is 5 minutes from last use (refreshed every turn — an hour-long active session sweeps warm; only idle-then-quit goes cold) and model-scoped (a Haiku sweep can never read an Opus/Fable cache). **Under re-verification:** 1-hour-TTL cache writes observed on 2026-06-13 — see Sweep telemetry.
 - Blocking Stop-hook `reason` text is always user-visible.
 
 ## SessionEnd `reason` values (docs-sourced 2026-06-11 — NOT live-verified)
@@ -69,6 +69,19 @@ The "$0.05–$0.20 per session" figure used in the README, the setup disclosure,
 Prices used (per MTok, input / ~cache-read; cached 2026-06-04): Opus 4.8 $5.00 / ~$0.50 · Sonnet 4.6 $3.00 / ~$0.30 · Haiku 4.5 $1.00 / ~$0.10 · Fable 5 $10.00 / ~$1.00.
 
 Caveats: the range is **Opus-referenced** — sessions on cheaper models sweep cheaper, and a long **Fable 5** session can exceed it (~$1/MTok cache-read → ~$0.25 at 250K tokens). Subscription users draw plan limits, not dollars. When prices change, re-derive as `session tokens × cache-read price` and update the figure everywhere it appears (README Cost, setup Phase 1, `.claude/togi.md` template, plugin descriptions, the opt-in notice in session-start.sh).
+
+## Sweep telemetry: --output-format json (verified 2026-06-13)
+
+The sweep now runs with `--output-format json`, which wraps the model's text in a result envelope carrying measured telemetry. Live-verified on this account (haiku, fresh `-p` plus a `--resume --fork-session` of it):
+
+- **`total_cost_usd` covers exactly this run, not the resumed session's prior spend.** Reconciled to floating-point identity: the fork-resume's reported cost ($0.0031054) equals its own `usage` block priced at list (input ×$1 + cache-read ×$0.10 + 1h-cache-write ×$2 + output ×$5 per MTok for Haiku). The resumed session's prior turns appear only as the input replay — the fork's `cache_read_input_tokens` (23,734) matched the base session's prefix (17,704 read + 6,030 created) — which is precisely the incremental cost togi's model describes.
+- **Client-side only.** The flag changes output formatting, not the API request — prompt and tool definitions are untouched, so the warm-cache property is preserved.
+- Envelope fields used: `.result` (the events array, now a JSON-encoded string — extracted with `fromjson`, every failure degrading to zero events as before), `total_cost_usd` → stamped per event as `sweep_cost_usd`, `usage.cache_read_input_tokens` → stamped as `sweep_cache_read_tokens`, `is_error`/`duration_ms`/fork `session_id` → debug log only. Ignored: `modelUsage` (redundant with `captured_by` + logged model args), `num_turns`, `iterations`. All telemetry fields are optional everywhere — `total_cost_usd` is verified on this account's auth only; the friction write must never fail for lack of it.
+- Stamps are per event, not per file (all events of a session share their sweep's values): the file is a flat array with no header object, matching the existing `session`/`date`/`cache` stamps.
+
+Why: the $0.05–$0.20 figure was pricing arithmetic (see Cost model derivation); stamped costs turn dogfooding into measured invoices, and `update-context-docs` reports the summed sweep cost in its PR metrics.
+
+**Open question raised by the same verification (observed 2026-06-13, NOT yet concluded):** both fresh `-p` runs wrote `cache_creation.ephemeral_1h_input_tokens` > 0 and zero 5-minute-TTL tokens — i.e. current Claude Code requests **1-hour-TTL** cache writes, at least for headless runs. The cost model, the 290 s cold threshold, and the Haiku fallback all rest on the verified-2026-06-10 5-minute TTL. If interactive sessions also cache at 1 h, the cold threshold is wildly conservative and the Haiku fallback fires needlessly — sessions idle under an hour would still sweep warm on their own model. The new `sweep telemetry:` debug log line (predicted warm/cold vs measured cache reads) is the instrument: sweeps predicted cold that show large `cache_read_input_tokens` settle it. Revisit the threshold once real data accumulates; do not change it on one observation.
 
 ## Sweep tool lockdown (verified 2026-06-11)
 
