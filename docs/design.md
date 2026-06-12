@@ -83,6 +83,19 @@ Caveats: the range is **Opus-referenced** — sessions on cheaper models sweep c
 
 Re-verify these when CLI behavior changes.
 
+## Doc targeting moved to aggregation time (decided 2026-06-13)
+
+Through v0.4.x every swept event carried a required `doc_gap` — the sweep named the doc to fix. That asked the sweep for a judgment it is structurally unable to make: it runs with every tool denied (see Sweep tool lockdown), so it cannot see the repo's doc tree — the only docs it knows are those that happened to be in the session's context, and friction events exist precisely because the relevant knowledge was *not* in context. In the common case `doc_gap` was a guess: `CLAUDE.md` by default, or an invented path. Worse, `update-context-docs`' "only edit files that exist" rule silently dropped events with invented paths, and its cleanup phase then deleted the session file — erasing them permanently. A quiet recall hole at the last mile, after all the effort spent on capture recall. Per-event targeting also fragmented aggregation: two sessions naming different docs for the same root cause were grouped as unrelated.
+
+The split now follows what each stage can actually know:
+
+- **The sweep captures only what it alone knows.** `misleading_doc` (optional) names a doc only when that doc was in the session's context *and* contained wrong or outdated guidance — the one case where sweep-time identification is reliable (the sweep watched the doc mislead) and hard to reconstruct later from a one-paragraph `body`. Missing-knowledge events carry no doc field; the `body` is required to name the topic precisely instead.
+- **`update-context-docs` decides placement.** It has everything the sweep lacks: repo visibility (the actual doc tree, current rather than capture-time — paths go stale), all events across sessions (root-cause grouping: one fix may serve many events, one event may need several docs, a new doc may be warranted), and the user in the loop reviewing proposed targets before any edit. It costs nothing extra — the skill already read every target file before editing.
+- **Legacy `doc_gap` events** (pre-change friction files still on disk) are accepted as low-confidence hints, never binding targets.
+- **Injection guardrail made explicit in the skill:** targets must be in-repo documentation files — never settings, code, CI, or hook files — regardless of what an event's `body` or hint field names. Event content derives from session transcripts (injectable); the PR-as-exfiltration channel is the same reason the sweep denies Read (see Sweep tool lockdown).
+
+Trade-off accepted: placement judgment now concentrates in one interactive run instead of being spread across sweeps. That run is exactly where the user already reviews events (and the PR is reviewed again by the team), which is a better seat for that judgment than an unsupervised, tool-denied headless sweep.
+
 ## Protected paths vs. skill permissions (docs-sourced 2026-06-12 — NOT live-verified)
 
 `.claude` is on Claude Code's fixed protected-directories list (https://code.claude.com/docs/en/permission-modes#protected-paths). Writes to protected paths are **never auto-approved** in any mode except `bypassPermissions`, and the check runs **before** allow rules are evaluated — so neither `permissions.allow` in settings nor a skill's `allowed-tools` can pre-approve a write to `.claude/settings.json` or `.claude/settings.local.json`. The two files are treated identically. Rationale (theirs, and ours): settings define permissions, so nothing running under the permission system may rewrite them silently.
