@@ -96,6 +96,32 @@ The split now follows what each stage can actually know:
 
 Trade-off accepted: placement judgment now concentrates in one interactive run instead of being spread across sweeps. That run is exactly where the user already reviews events (and the PR is reviewed again by the team), which is a better seat for that judgment than an unsupervised, tool-denied headless sweep.
 
+## Sweep output hardening: schema gate + significance cap (decided 2026-06-13)
+
+Two small guards on what a sweep can inject into the pipeline, shipped together:
+
+**Schema gate (session-end.sh).** The hook used to write whatever JSON array the sweep returned. A malformed event — missing field, wrong type value, a bare string in the array — flowed into the friction file and surfaced as confusion at processing time, possibly weeks later and far from its cause. Now a jq filter keeps only objects carrying `type`/`slug`/`captured_by`/`body` as non-empty strings with `type` one of the four known values, and the drop count is logged (`TOGI_DEBUG=1`). `misleading_doc` is deliberately not checked — it is optional by design (see Doc targeting), so absence is legitimate. The same filter is reused for both the count and the file write, so the two cannot disagree. The optional-field schema made this *more* necessary, not less: once "field missing" is sometimes valid, only an explicit gate can tell valid-sparse from malformed. Covered by the regression test (malformed events in the fake sweep output must not reach the friction file).
+
+**Significance cap (capture prompt).** One overzealous sweep could emit a dozen marginal events and instantly trip the threshold-5 startup reminder — and the reminder's credibility is a UX asset: it only works if it is rare and deserved. The prompt now allows at most the five most significant events, ordered most significant first. The cap bounds per-session noise; the ordering means a truncated review still sees the strongest events first. Five was chosen to match the default `TOGI_EVENT_THRESHOLD`: a single session can fill the reminder quota only with five genuinely significant events, which is exactly when firing immediately is correct.
+
+## Feedback loop: processed-event archive + recurrence detection (decided 2026-06-13)
+
+Togi's promise is "PR merged → agent reads better docs → fewer stumbles", but nothing ever verified the last arrow — and `update-context-docs`' cleanup phase actively destroyed the data needed to check, `rm`-ing friction files after processing. A gap recurring *after* its fix landed is the most valuable signal in the system (the rule is too weak, lives in a doc agents don't read, or the PR never merged) and was indistinguishable from a brand-new event.
+
+Now `update-context-docs` archives instead of deletes: one file per run under `.claude/friction/processed/`, every event (excluded ones included) annotated with `processed_date`, `outcome` (`doc_updated`/`excluded`), `target_docs`, and `branch`. Before editing, the skill compares incoming event groups against the archive — semantically, by `slug` + `body`; slugs are model-generated per sweep, so string equality misses true matches — and flags:
+
+- **Recurrence after fix** (`doc_updated`, event `date` > `processed_date`): the fix didn't take. Severity floor: medium; strengthen or relocate the previous rule instead of appending a near-duplicate. Caveat the skill is told about: a recurrence may just mean the fix PR hasn't merged yet.
+- **Recurrence after exclusion**: previously dismissed as noise and came back — surfaced to the user as "probably real after all".
+
+Design constraints honored:
+
+- The session-start reminder counts `find -maxdepth 1` and the skill's pending scan does the same, so archived events are invisible to both by construction — no double-counting, no re-processing.
+- `.gitignore`'s `/.claude/friction/` already covers the archive: it is local history, never committed (same privacy posture as pending events).
+- The archive write is a `Write` into protected `.claude` and therefore prompts once per run — accepted, not routed around (see Protected paths).
+- Archive files older than ~6 months are pruned at cleanup: recurrence that slow is indistinguishable from new friction, and the archive must not grow unbounded.
+
+Trade-off accepted: excluded events are no longer "acceptable losses" (the old cleanup wording) — they persist in the archive as history. That is the point: exclusion was a judgment, and the archive is what lets a wrong judgment be caught.
+
 ## Protected paths vs. skill permissions (docs-sourced 2026-06-12 — NOT live-verified)
 
 `.claude` is on Claude Code's fixed protected-directories list (https://code.claude.com/docs/en/permission-modes#protected-paths). Writes to protected paths are **never auto-approved** in any mode except `bypassPermissions`, and the check runs **before** allow rules are evaluated — so neither `permissions.allow` in settings nor a skill's `allowed-tools` can pre-approve a write to `.claude/settings.json` or `.claude/settings.local.json`. The two files are treated identically. Rationale (theirs, and ours): settings define permissions, so nothing running under the permission system may rewrite them silently.
@@ -131,6 +157,28 @@ Still rejected, do not reintroduce:
 `/togi:setup` commits **no** `extraKnownMarketplaces` and **no** `enabledPlugins`. Committed entries are the platform's documented team pattern ("Require marketplaces for your team"), and teammates do get a prompt at folder-trust — but the prompt's decline behavior is undocumented, hooks get no separate trust step, and even "dormant" hooks execute at every session boundary. Committing enablement would grant togi's author code execution on every teammate's machine *on their behalf*, which contradicts togi's own supply-chain posture (README): code lands on a machine only when its owner installs it.
 
 Instead the repo carries an adoption note: `.claude/togi.md` (install commands + cost model; inert) plus a pointer section in `CONTRIBUTING.md`/`README.md`, with the setup PR as the team's review artifact. The adoption note doubles as the signal for the one-time opt-in notice. Trade-off accepted: adoption is three manual commands per developer instead of zero, and developers who never install the plugin see no in-product discovery at all — the pointer section carries that load.
+
+## Remote friction pooling + CI processing (considered 2026-06-13 — deferred, not designed)
+
+Idea: instead of accumulating friction on each dev's machine, push events to a remote branch and have a CI job process them. Recorded here for a later stage; nothing below is committed to.
+
+It decomposes into two proposals with very different profiles — most of the benefit lives in the first, most of the cost in the second:
+
+**(a) Pooling events remotely.** The strongest argument for togi-anything: the capture filter is "would this recur?", and the best evidence of recurrence is the same root cause hitting several developers — a signal that per-machine accumulation makes structurally invisible. Today three devs each sit at 2 events, nobody crosses the threshold of 5 (or worse, three PRs open for the same gap). Cross-dev pooling would make aggregation-time root-cause grouping work over the team's events, not one person's. It also stops friction rotting on machines of devs who ignore the reminder, survives laptop wipes, and serves multi-machine devs. Mechanically cheap: a dedicated ref/branch, one uniquely-named file per session, no merge conflicts.
+
+**(b) Processing in CI.** Buys timeliness (no human has to remember), but conflicts with three load-bearing commitments:
+
+- **Privacy.** Event `body` paragraphs are distilled session content; the current story is "nothing leaves your machine except your own API call". Pushing raw events publishes session-derived prose to everyone with repo read access — and bodies are already classified as an exfiltration channel (the reason the sweep denies Read; see Sweep tool lockdown). Auto-pushing at session end removes the *first* human gate (Phase 3 event review) at the most sensitive point. Sanitization cannot fix this: the body *is* the payload.
+- **Consent.** Capture opt-in is personal and uncommitted, and the data stays personal. Team-visible friction is partly a record of a dev's own corrections — readable as performance telemetry. Sharing needs its own consent step, separate from capture.
+- **Supply chain.** A CI processor means committing executable workflow config (which `/togi:setup` pointedly refuses to do), parking a long-lived org API key in CI secrets, and pointing an agent that has push/PR rights at injectable input — with no Phase 3 human review, leaving only PR-diff review *after* edits were steered. That is the same threat shape the sweep lockdown exists to prevent. It also shifts billing from personal plan limits to an org API account.
+
+**If revisited, stage it so every step keeps a human gate:**
+
+1. Event sharing as a **separate opt-in** with a plain "your events become visible to repo readers" disclosure; session-end pushes the friction file to the shared ref; decliners keep the local-only flow. Consider a pre-push review moment (e.g. push at next session start with a one-line notice) rather than a silent push at session end.
+2. **Processing stays interactive**: `update-context-docs` reads the shared ref in addition to the local dir; any opted-in dev processes the team pool with the Phase 2/3 review intact. This captures essentially the full pooling benefit with zero new credentials and nothing executable in git.
+3. CI, if any, is **inert**: a scheduled job that counts events on the friction ref and opens an issue at a team threshold ("23 events from 4 devs — run /togi:update-context-docs"). No API key, no agent, no injection surface; replaces the per-dev startup nag with a team-level one.
+
+Full CI processing (agent edits docs unsupervised) stays rejected unless 1–3 prove insufficient — and the injectable-input + credentials − human-gate combination argues against it even then. Default posture if implemented: pooling off for open-source repos with external contributors; reasonable for private team repos.
 
 ## Distribution pinning (2026-06-11)
 

@@ -26,12 +26,14 @@ run_test() {
   local argv_file="$tmpdir/argv"
   local stdin_file="$tmpdir/stdin"
 
-  # Fake claude: record argv and stdin, then output a JSON friction event.
+  # Fake claude: record argv and stdin, then output one valid friction event
+  # plus two malformed ones (unknown type; missing body) that the schema gate
+  # in session-end.sh must drop.
   cat > "$fake_bin/claude" << 'FAKE_EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$@" > "$TOGI_TEST_ARGV"
 cat > "$TOGI_TEST_STDIN"
-printf '[{"type":"clarification","slug":"test-friction-event","misleading_doc":"CLAUDE.md","captured_by":"test-model","body":"Test body."}]\n'
+printf '[{"type":"clarification","slug":"test-friction-event","misleading_doc":"CLAUDE.md","captured_by":"test-model","body":"Test body."},{"type":"bogus","slug":"unknown-type","captured_by":"test-model","body":"x"},{"type":"correction","slug":"missing-body","captured_by":"test-model"}]\n'
 FAKE_EOF
   chmod +x "$fake_bin/claude"
 
@@ -112,6 +114,7 @@ FAKE_EOF
   friction_file="$(find "$tmpdir/.claude/friction" -name "*.json" 2>/dev/null | head -1)"
   [ -n "$friction_file" ] || fail "friction JSON file not created from sweep output"
   if [ -n "$friction_file" ]; then
+    jq -e 'length == 1'                        "$friction_file" >/dev/null 2>&1 || fail "schema gate did not drop the malformed events"
     jq -e '.[0].type == "clarification"'       "$friction_file" >/dev/null 2>&1 || fail "wrong type in friction JSON"
     jq -e --arg s "$session_id" '.[0].session == $s' "$friction_file" >/dev/null 2>&1 || fail "session_id not in friction JSON"
     jq -e '.[0].misleading_doc == "CLAUDE.md"' "$friction_file" >/dev/null 2>&1 || fail "misleading_doc not passed through to friction JSON"
