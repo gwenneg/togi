@@ -1,11 +1,6 @@
 ---
 name: disable
-description: Disable togi friction capture for you only — not committed, not shared
-allowed-tools:
-  - Bash(mkdir*)
-  - Bash(touch .claude/*)
-  - Bash(jq*)
-  - Bash(mv .claude/*)
+description: Disable friction capture for you alone — git-ignored local setting, teammates unaffected
 ---
 
 # Instructions
@@ -20,6 +15,6 @@ mv .claude/settings.local.json.tmp .claude/settings.local.json
 Then output:
 
 ```
-Friction capture disabled for this repo.
-To re-enable, run /togi:enable.
+Friction capture is off for you in this repo — teammates are unaffected.
+Turn it back on any time with /togi:enable.
 ```
