@@ -8,10 +8,14 @@ set -uo pipefail
 # Logging must be set up first so every early exit can be recorded.
 source "$(dirname "$0")/lib/logging.sh"
 
-log "session-end.sh" "hook started (TOGI_ENABLED=${TOGI_ENABLED:-1} TOGI_HEADLESS=${TOGI_HEADLESS:-0})"
+log "session-end.sh" "hook started (TOGI_ENABLED=${TOGI_ENABLED:-0} TOGI_HEADLESS=${TOGI_HEADLESS:-0})"
 
-if [ "${TOGI_ENABLED:-1}" != "1" ]; then
-  log "session-end.sh" "exit: friction capture disabled (TOGI_ENABLED=${TOGI_ENABLED})"
+# Opt-in gate: TOGI_ENABLED defaults to 0. `/plugin install` defaults to USER
+# scope, i.e. hooks fire in every repo on the machine — an install must never
+# start billing sweeps by itself. /togi:setup or /togi:enable writes the opt-in
+# (see docs/design.md, Activation model).
+if [ "${TOGI_ENABLED:-0}" != "1" ]; then
+  log "session-end.sh" "exit: not enabled (TOGI_ENABLED=${TOGI_ENABLED:-unset}) — opt in via /togi:enable"
   exit 0
 fi
 

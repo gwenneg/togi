@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# SessionStart hook — reminds Claude to process accumulated friction when the event threshold is reached.
+# SessionStart hook — one-time opt-in notice for developers who haven't enabled togi,
+# and a reminder to process accumulated friction once the event threshold is reached.
 
 # No -e: failures are tolerated deliberately (every fallible call has an explicit
 # fallback) and a hook that dies mid-script would fail silently.
@@ -8,29 +9,48 @@ set -uo pipefail
 # Logging must be set up first so every early exit can be recorded.
 source "$(dirname "$0")/lib/logging.sh"
 
-log "session-start.sh" "hook started (TOGI_ENABLED=${TOGI_ENABLED:-1} TOGI_HEADLESS=${TOGI_HEADLESS:-0})"
+log "session-start.sh" "hook started (TOGI_ENABLED=${TOGI_ENABLED:-0} TOGI_HEADLESS=${TOGI_HEADLESS:-0})"
 
-# Early exit: developer opted out via TOGI_ENABLED=0 in .claude/settings.local.json.
-if [ "${TOGI_ENABLED:-1}" != "1" ]; then
-  log "session-start.sh" "exit: friction capture disabled (TOGI_ENABLED=${TOGI_ENABLED})"
-  exit 0
-fi
-
-# Early exit: headless session launched by session-end.sh — showing a reminder to a
-# non-interactive process makes no sense and would trigger another SessionEnd sweep.
+# Early exit: headless session launched by session-end.sh — a child sweep must
+# produce no notices or reminders.
 if [ "${TOGI_HEADLESS:-0}" = "1" ]; then
-  log "session-start.sh" "exit: headless session (TOGI_HEADLESS=1) — suppressing reminder"
+  log "session-start.sh" "exit: headless session (TOGI_HEADLESS=1) — suppressing output"
   exit 0
 fi
 
-# Early exit: jq is required to parse stdin and produce valid JSON output.
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
+
+# Opt-in gate: TOGI_ENABLED defaults to 0 (see docs/design.md, Activation model).
+# Developers who haven't opted in get a single notice — only in repos carrying
+# the committed adoption note .claude/togi.md (setup commits nothing executable;
+# the adoption note is the "this repo uses togi" signal — see docs/design.md,
+# Team distribution). A user-scope plugin install fires this hook in every repo
+# on the machine; repos without the adoption note must stay silent.
+if [ "${TOGI_ENABLED:-0}" != "1" ]; then
+  MARKER="$PROJECT_DIR/.claude/togi-notice-shown"
+  if [ -e "$MARKER" ]; then
+    log "session-start.sh" "exit: not enabled, opt-in notice already shown"
+    exit 0
+  fi
+  if [ ! -f "$PROJECT_DIR/.claude/togi.md" ]; then
+    log "session-start.sh" "exit: not enabled, repo has no togi adoption note — staying silent"
+    exit 0
+  fi
+  touch "$MARKER" 2>/dev/null
+  log "session-start.sh" "showing one-time opt-in notice (marker: $MARKER)"
+  # Static JSON — no jq dependency on this path.
+  printf '%s\n' '{"systemMessage": "Togi is set up in this repo but off for you. Opt in with /togi:enable — one API call per session end (~$0.05–$0.20, on your account or plan limits). This notice will not repeat."}'
+  exit 0
+fi
+
+# Early exit: jq is required to count friction events and emit the JSON hook response.
 if ! command -v jq &>/dev/null; then
   log "session-start.sh" "exit: jq not found on PATH — outputting error message"
   echo '{"systemMessage": "Togi: jq is not installed. Install it to enable friction capture."}'
   exit 0
 fi
 
-FRICTION_DIR="${CLAUDE_PROJECT_DIR:-.}/.claude/friction"
+FRICTION_DIR="$PROJECT_DIR/.claude/friction"
 
 # Count total events across all session JSON files.
 EVENT_COUNT=0

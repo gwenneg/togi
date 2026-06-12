@@ -1,115 +1,123 @@
 ---
 name: setup
-description: Install togi — session hooks that capture AI friction events and remind developers to improve context docs
+description: Turn your team's AI friction into better docs — sets up togi with an inert adoption note, a reviewable PR, and per-developer opt-in capture
 allowed-tools:
-  - Write
-  - Read
-  - Edit
-  - Bash(jq*)
-  - Bash(grep*)
   - Bash(git add *)
   - Bash(git branch *)
   - Bash(git checkout *)
   - Bash(git fetch *)
   - Bash(git rev-parse *)
   - Bash(git remote *)
-  - Bash(git commit *)
-  - Bash(git push *)
-  - Bash(gh pr create *)
+  - Edit
+  - Read
+  - Skill(togi:enable)
+  - Write
 ---
 
 # Instructions
+
+If any step in any phase fails, stop and report the error — do not improvise workarounds.
 
 ## Phase 1: Explain and get consent
 
 Output the following text verbatim before taking any other action:
 
-> **Togi** (研ぎ, to sharpen) is a friction-driven feedback loop for AI context docs. At the end of each session, togi resumes the session headlessly to detect friction events — corrections, clarifications, mistakes, tool denials — and writes them to `.claude/friction/`. Once enough friction events accumulate, a startup reminder prompts the team to run `/togi:update-context-docs`, which turns those events into doc improvements via a pull request.
+> **Togi** (研ぎ, to sharpen) turns AI friction — corrections, clarifications, mistakes, denied tool calls — into context-doc pull requests. For developers who opt in, each ended session is swept for friction events (written as JSON to `.claude/friction/`); once enough accumulate, `/togi:update-context-docs` turns them into a doc PR.
 >
-> **Before proceeding, read this carefully:**
+> **What this setup commits: nothing executable.** Three inert files — `.gitignore` entries, an adoption note at `.claude/togi.md`, and a pointer in `CONTRIBUTING.md` (or `README.md`). No repo-level marketplace registration or plugin enablement: teammates get togi only by installing it themselves, and capture stays **off for everyone** (`TOGI_ENABLED=0`) until each developer personally opts in — you'll be offered that at the end of this setup.
 >
-> **What this installs.** This phase configures your project: it adds the togi marketplace entry and plugin to `.claude/settings.json` and updates `.gitignore`. The SessionStart and SessionEnd hooks are managed by the plugin itself via `hooks/hooks.json` — nothing is written to your project for those. Those hooks are already active: friction capture and the end-of-session sweep run by default (`TOGI_ENABLED` defaults to `1`) from the moment the plugin is installed — this setup configures the project for the team; it does not switch capture on or off.
+> **Cost, for opted-in developers only.** One headless sweep per session — typically **$0.05–$0.20**, drawn from your own plan limits or API billing. It's cheap because it reuses the session's still-warm prompt cache; sessions left idle until the cache goes cold fall back to Haiku.
 >
-> **Cost.** At the end of every session, togi launches a headless `claude -p --resume --fork-session` call to sweep the session for friction events. This is billed to your Anthropic API account (or drawn from your subscription's usage limits). Typical cost: **$0.05–$0.20 per session** when launched promptly (warm prompt cache). Sessions whose last exchange is more than 290 seconds old at session end (just under the cache's 5-minute TTL) use a Haiku fallback to cap the cold-cache cost.
+> **Privacy.** The sweep resumes your session under your own credentials, exactly as if you had resumed it yourself — nothing goes to any third party.
 >
-> **Privacy.** The sweep resumes your session via the `claude` CLI on your own account. Your session transcript is not sent to any third party — the sweep runs as a headless Claude Code process under your own credentials, exactly as if you had resumed the session yourself.
->
-> Any developer can opt out with `/togi:disable`.
+> Opt in or out any time with `/togi:enable` / `/togi:disable` — personal, never committed.
 
 Use `AskUserQuestion` to ask: **"Do you want to proceed with the installation?"** Options: **Yes, proceed** / **No, cancel**.
 
 If the user selects No, stop.
 
-## Phase 2: Configure settings.json and .gitignore
+## Phase 2: Commit the adoption note and .gitignore entries
 
 Output the following text verbatim before taking any other action in this phase:
 
-> This phase configures `.claude/settings.json` with the togi marketplace registration and plugin enablement, and updates `.gitignore` with the togi ignore entries. All existing content is preserved.
+> Writing the three inert files now: the `.gitignore` entries, the adoption note `.claude/togi.md`, and the `CONTRIBUTING.md`/`README.md` pointer. Deliberately **nothing** in `.claude/settings.json` — committed marketplace or plugin entries would auto-install togi's hooks onto every teammate's machine; code lands only where its owner installs it.
 >
-> **Friction capture is enabled by default for everyone on the team.** Events are written as local JSON files (one per session) to `.claude/friction/` (git-ignored). At the end of each session, the SessionEnd hook launches a headless sweep to review the session for friction and write any qualifying events. Any developer can opt out personally with `/togi:disable`, which writes to `.claude/settings.local.json` (not committed).
->
-> You can set `TOGI_EVENT_THRESHOLD` (default: `5`) to control how many friction events accumulate before the startup reminder appears.
+> Teammates who install togi see a **one-time notice** pointing them to `/togi:enable`; until they opt in, nothing runs for them. Tune `TOGI_EVENT_THRESHOLD` (default `5`) to set how many friction events trigger the startup reminder.
 
-### 1. settings.json
+### 1. Adoption note
 
-```bash
-mkdir -p .claude
-touch .claude/settings.json
+Write `.claude/togi.md` with exactly this content:
+
+```markdown
+# This repo uses togi (研ぎ)
+
+[Togi](https://github.com/gwenneg/togi) turns AI friction — corrections, clarifications, mistakes, denied tool calls — into context-doc pull requests. Capture is opt-in per developer and costs ~$0.05–$0.20 per session for those who opt in (their own plan limits or API billing).
+
+To participate, run in Claude Code:
+
+    /plugin marketplace add gwenneg/togi
+    /plugin install togi@togi
+    /togi:enable
+
+Opt back out any time with /togi:disable. This file is togi's adoption note: it records that this repo adopted togi, and its presence lets togi show a one-time opt-in notice to developers who already have the plugin installed — nothing in this repo installs or runs anything by itself.
 ```
 
-Set the togi marketplace entry and enable the plugin. This is idempotent — re-setting values that are already present is harmless, and all other content is preserved (`jq -s` with `.[0] // {}` handles a missing or empty settings file):
+### 2. Contributor docs pointer
 
-```bash
-jq -s '(.[0] // {})
-  | .extraKnownMarketplaces.togi = {"source": {"source": "github", "repo": "gwenneg/togi"}}
-  | .enabledPlugins."togi@togi" = true' \
-  .claude/settings.json > .claude/settings.json.tmp \
-  && mv .claude/settings.json.tmp .claude/settings.json
+If `CONTRIBUTING.md` exists, append the following section to it; otherwise append it to `README.md`:
+
+```markdown
+## AI friction capture (togi)
+
+This repo uses [togi](https://github.com/gwenneg/togi) to turn AI friction into context-doc improvements. Participation is opt-in per developer — see [.claude/togi.md](.claude/togi.md) for the setup commands and cost model.
 ```
 
-The `&&` is load-bearing: if `jq` fails (e.g. corrupt existing settings.json), the half-written `.tmp` must never replace the real file.
-
-For the report at the end of this phase, check what was already present before writing (e.g. `jq -e '.extraKnownMarketplaces.togi' .claude/settings.json` and `jq -e '.enabledPlugins."togi@togi"' .claude/settings.json`).
-
-### 2. .gitignore
+### 3. .gitignore
 
 Append any of the following lines that are not already present in `.gitignore`. Ignore only what togi creates — do not ignore `.claude/` wholesale, which would hide files teams commit deliberately (commands, agents, skills):
 
 ```
 /.claude/friction/
-/.claude/togi.log
 /.claude/settings.local.json
+/.claude/togi.log
+/.claude/togi-notice-shown
 ```
 
 ### Report
 
-After completing all steps, print a summary of what was added vs. already present for each of the two files.
+After completing all steps, print a summary of what was added vs. already present for each file touched: `.gitignore`, `.claude/togi.md`, and the `CONTRIBUTING.md`/`README.md` pointer.
 
-If any step fails, stop and report the error.
+## Phase 3: Offer to enable capture for this developer
 
-## Phase 3: Commit and open a PR
+Capture is dormant until each developer opts in. Use `AskUserQuestion` to ask: **"Enable friction capture for yourself now?"** Options: **This repo only** / **All my repos** / **Not now**.
 
-Detect the default branch: run `git rev-parse --abbrev-ref origin/HEAD` and strip the `origin/` prefix from the output yourself. If that fails (origin/HEAD not configured, common in manually-cloned repos), run `git remote show origin` and read the branch name from its `HEAD branch:` line. If both fail, use `main`.
+- **This repo only** — invoke the `/togi:enable` skill with the argument `repo`.
+- **All my repos** — invoke the `/togi:enable` skill with the argument `all`.
+- **Not now** — skip; mention that `/togi:enable` works at any time.
 
-Check whether `chore/setup-togi` already exists with `git branch --list` (add `-2`, `-3`, etc. until the name is unique). Then create the branch from the up-to-date default — never from the currently checked-out branch, which may carry unrelated work:
+The enable skill owns the opt-in commands and confirmation outputs — do not inline or restate them here.
 
-```bash
-git fetch origin
-git checkout -b chore/setup-togi origin/<default-branch>
-```
+## Phase 4: Commit and open a PR
 
-The Phase 2 changes are uncommitted, so they carry over to the new branch.
+1. Pick the base remote: `upstream` if it exists (fork workflow — `origin` is the fork and may be stale), otherwise `origin`. Call it `<remote>` below. Then detect the default branch:
+   - `git rev-parse --abbrev-ref <remote>/HEAD` → strip the `<remote>/` prefix yourself.
+   - If unset (common for upstream remotes and manually-cloned repos): `git remote show <remote>` → read its `HEAD branch:` line.
+   - If both fail, use `main`.
+2. Pick a unique branch name: `chore/setup-togi`, appending `-2`, `-3`, … if `git branch --list` shows it taken.
+3. Branch from the up-to-date default — never from the current HEAD, which may carry unrelated work. The Phase 2 changes are uncommitted and carry over:
 
-Stage only these files:
-- `.claude/settings.json`
-- `.gitignore`
+   ```bash
+   git fetch <remote>
+   git checkout -b chore/setup-togi <remote>/<default-branch>
+   ```
 
-Commit with message: `chore: set up togi`
+4. Stage exactly the three Phase 2 files — `.gitignore`, `.claude/togi.md`, and the pointer file — then commit with message: `chore: set up togi`
+5. Push the branch to `origin` (on a fork that is your fork; `gh pr create` then targets the upstream repo automatically), and open a PR titled `Set up togi` with this body (adjust the pointer filename; append the standard `Generated with Claude Code` footer):
 
-Push and open a PR with a body that includes:
+   ```markdown
+   Sets up [togi](https://github.com/gwenneg/togi). Every time Claude stumbles in this repo — a wrong assumption, a missing convention, a denied command — that's a gap in our context docs. Togi captures those moments and turns them into doc PRs, so the same stumble doesn't happen twice.
 
-- What was configured: togi marketplace entry and plugin enablement in `.claude/settings.json`, and `.gitignore` entries
-- How friction capture works: at the end of each session, the SessionEnd hook launches a headless `claude -p --resume --fork-session` sweep to review the session for friction events (corrections, clarifications, mistakes, denials) and write any that qualify to `.claude/friction/`. Typical cost: $0.05–$0.20 per session (warm prompt cache). The SessionStart and SessionEnd hooks are part of the togi plugin and fire automatically without any project-side configuration
-- Opt-out instruction: run `/togi:disable` at any time (personal, not committed)
+   **Is this safe to merge?** Yes — and you can verify it from the diff alone. The entire change is three inert text files: `.gitignore` entries, the adoption note `.claude/togi.md`, and a pointer in `CONTRIBUTING.md`. No settings, no hooks, no code: merging installs nothing and runs nothing on anyone's machine. If the diff shows anything beyond those three files, reject this PR.
 
-Include the standard `Generated with Claude Code` footer.
+   **Trying it costs a minute and pennies.** Run the three commands in `.claude/togi.md`, work normally, and check `.claude/friction/` after a few sessions. Capture is opt-in per developer: a headless sweep — Claude resuming your ended session under your own credentials, nothing sent to any third party — reviews each session for friction events. Typical cost: $0.05–$0.20 per session, on your own plan limits or API billing. Haven't opted in? You'll see a one-time notice and nothing else will ever run. Leave any time with `/togi:disable`.
+   ```
