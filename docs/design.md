@@ -70,6 +70,17 @@ Log live `reason` values (TOGI_DEBUG=1) before relying on any finer distinctions
 
 Re-verify these when CLI behavior changes.
 
+## Protected paths vs. skill permissions (docs-sourced 2026-06-12 — NOT live-verified)
+
+`.claude` is on Claude Code's fixed protected-directories list (https://code.claude.com/docs/en/permission-modes#protected-paths). Writes to protected paths are **never auto-approved** in any mode except `bypassPermissions`, and the check runs **before** allow rules are evaluated — so neither `permissions.allow` in settings nor a skill's `allowed-tools` can pre-approve a write to `.claude/settings.json` or `.claude/settings.local.json`. The two files are treated identically. Rationale (theirs, and ours): settings define permissions, so nothing running under the permission system may rewrite them silently.
+
+Consequences for togi:
+
+- The settings writes in `/togi:enable`, `/togi:disable`, and `/togi:setup` **always prompt**. This is acceptable — the write toggles a consent flag, and the prompt puts that approval in front of exactly the right person at the right moment.
+- `enable` and `disable` carry **no `allowed-tools`**: an allowlist cannot deliver promptless operation for skills whose whole job is a protected write, so it buys nothing there (removed 2026-06-12).
+- `setup` keeps `allowed-tools` only for steps outside `.claude` — the `.gitignore` edits, the read-only `jq -e` report checks, and the git/gh flow. The entries that existed solely for protected-path writes (`Bash(mkdir*)`, `Bash(touch .claude/*)`, `Bash(mv .claude/*)`) were removed (2026-06-12): they could never pre-approve those writes, and a dead grant is worse than a prompt.
+- Whether the check inspects Bash redirect targets (`> .claude/foo.tmp`) or `mv` side effects is undocumented. Togi deliberately does **not** rely on that either way — routing writes through a vehicle the checker might miss would be evading a safety feature via an undocumented gap.
+
 ## Activation model (decided 2026-06-11)
 
 `TOGI_ENABLED` (default `1`) is the only switch: friction capture — including the end-of-session sweep (one API call, billed or drawn from plan limits) — is active from the moment the plugin is installed. `/togi:setup` configures the project for the team and discloses the cost model; it does not gate capture. Opt-out is per-developer via `/togi:disable` (`TOGI_ENABLED=0` in `.claude/settings.local.json`).

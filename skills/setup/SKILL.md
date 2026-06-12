@@ -5,14 +5,14 @@ allowed-tools:
   - Write
   - Read
   - Edit
-  - Bash(mkdir*)
-  - Bash(touch .claude/*)
   - Bash(jq*)
-  - Bash(mv .claude/*)
   - Bash(grep*)
   - Bash(git add *)
   - Bash(git branch *)
   - Bash(git checkout *)
+  - Bash(git fetch *)
+  - Bash(git rev-parse *)
+  - Bash(git remote *)
   - Bash(git commit *)
   - Bash(git push *)
   - Bash(gh pr create *)
@@ -44,9 +44,9 @@ If the user selects No, stop.
 
 Output the following text verbatim before taking any other action in this phase:
 
-> This phase configures `.claude/settings.json` with the togi marketplace registration and plugin enablement, and updates `.gitignore` with the togi allowlist. All existing content is preserved.
+> This phase configures `.claude/settings.json` with the togi marketplace registration and plugin enablement, and updates `.gitignore` with the togi ignore entries. All existing content is preserved.
 >
-> **Friction capture is enabled by default for everyone on the team.** Events are written as local markdown files to `.claude/friction/` (git-ignored). At the end of each session, the SessionEnd hook launches a headless sweep to review the session for friction and write any qualifying events. Any developer can opt out personally with `/togi:disable`, which writes to `.claude/settings.local.json` (not committed).
+> **Friction capture is enabled by default for everyone on the team.** Events are written as local JSON files (one per session) to `.claude/friction/` (git-ignored). At the end of each session, the SessionEnd hook launches a headless sweep to review the session for friction and write any qualifying events. Any developer can opt out personally with `/togi:disable`, which writes to `.claude/settings.local.json` (not committed).
 >
 > You can set `TOGI_EVENT_THRESHOLD` (default: `5`) to control how many friction events accumulate before the startup reminder appears.
 
@@ -63,9 +63,11 @@ Set the togi marketplace entry and enable the plugin. This is idempotent — re-
 jq -s '(.[0] // {})
   | .extraKnownMarketplaces.togi = {"source": {"source": "github", "repo": "gwenneg/togi"}}
   | .enabledPlugins."togi@togi" = true' \
-  .claude/settings.json > .claude/settings.json.tmp
-mv .claude/settings.json.tmp .claude/settings.json
+  .claude/settings.json > .claude/settings.json.tmp \
+  && mv .claude/settings.json.tmp .claude/settings.json
 ```
+
+The `&&` is load-bearing: if `jq` fails (e.g. corrupt existing settings.json), the half-written `.tmp` must never replace the real file.
 
 For the report at the end of this phase, check what was already present before writing (e.g. `jq -e '.extraKnownMarketplaces.togi' .claude/settings.json` and `jq -e '.enabledPlugins."togi@togi"' .claude/settings.json`).
 
@@ -87,11 +89,20 @@ If any step fails, stop and report the error.
 
 ## Phase 3: Commit and open a PR
 
+Detect the default branch: run `git rev-parse --abbrev-ref origin/HEAD` and strip the `origin/` prefix from the output yourself. If that fails (origin/HEAD not configured, common in manually-cloned repos), run `git remote show origin` and read the branch name from its `HEAD branch:` line. If both fail, use `main`.
+
+Check whether `chore/setup-togi` already exists with `git branch --list` (add `-2`, `-3`, etc. until the name is unique). Then create the branch from the up-to-date default — never from the currently checked-out branch, which may carry unrelated work:
+
+```bash
+git fetch origin
+git checkout -b chore/setup-togi origin/<default-branch>
+```
+
+The Phase 2 changes are uncommitted, so they carry over to the new branch.
+
 Stage only these files:
 - `.claude/settings.json`
 - `.gitignore`
-
-Create a branch named `chore/setup-togi` (add `-2`, `-3`, etc. if it already exists).
 
 Commit with message: `chore: set up togi`
 
