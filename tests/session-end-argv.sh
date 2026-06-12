@@ -31,7 +31,7 @@ run_test() {
 #!/usr/bin/env bash
 printf '%s\n' "$@" > "$TOGI_TEST_ARGV"
 cat > "$TOGI_TEST_STDIN"
-printf '[{"type":"clarification","slug":"test-friction-event","doc_gap":"CLAUDE.md","captured_by":"test-model","body":"Test body."}]\n'
+printf '[{"type":"clarification","slug":"test-friction-event","misleading_doc":"CLAUDE.md","captured_by":"test-model","body":"Test body."}]\n'
 FAKE_EOF
   chmod +x "$fake_bin/claude"
 
@@ -114,7 +114,7 @@ FAKE_EOF
   if [ -n "$friction_file" ]; then
     jq -e '.[0].type == "clarification"'       "$friction_file" >/dev/null 2>&1 || fail "wrong type in friction JSON"
     jq -e --arg s "$session_id" '.[0].session == $s' "$friction_file" >/dev/null 2>&1 || fail "session_id not in friction JSON"
-    jq -e '.[0].doc_gap == "CLAUDE.md"'        "$friction_file" >/dev/null 2>&1 || fail "doc_gap not in friction JSON"
+    jq -e '.[0].misleading_doc == "CLAUDE.md"' "$friction_file" >/dev/null 2>&1 || fail "misleading_doc not passed through to friction JSON"
     jq -e '.[0].body == "Test body."'          "$friction_file" >/dev/null 2>&1 || fail "body not in friction JSON"
     jq -e '.[0].cache'                         "$friction_file" >/dev/null 2>&1 || fail "cache not added to friction JSON"
     jq -e '.[0].date'                          "$friction_file" >/dev/null 2>&1 || fail "date not added to friction JSON"
