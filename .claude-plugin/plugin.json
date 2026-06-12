@@ -1,6 +1,6 @@
 {
   "name": "togi",
-  "description": "Sharpen AI context docs through friction (研ぎ)",
+  "description": "Reviews each ended session for friction — corrections, clarifications, mistakes, denied tool calls — with one extra API call per session, and turns recurring doc gaps into context-doc pull requests.",
   "repository": "https://github.com/gwenneg/togi",
   "license": "Apache-2.0"
 }
