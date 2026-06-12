@@ -96,6 +96,32 @@ The split now follows what each stage can actually know:
 
 Trade-off accepted: placement judgment now concentrates in one interactive run instead of being spread across sweeps. That run is exactly where the user already reviews events (and the PR is reviewed again by the team), which is a better seat for that judgment than an unsupervised, tool-denied headless sweep.
 
+## Sweep output hardening: schema gate + significance cap (decided 2026-06-13)
+
+Two small guards on what a sweep can inject into the pipeline, shipped together:
+
+**Schema gate (session-end.sh).** The hook used to write whatever JSON array the sweep returned. A malformed event — missing field, wrong type value, a bare string in the array — flowed into the friction file and surfaced as confusion at processing time, possibly weeks later and far from its cause. Now a jq filter keeps only objects carrying `type`/`slug`/`captured_by`/`body` as non-empty strings with `type` one of the four known values, and the drop count is logged (`TOGI_DEBUG=1`). `misleading_doc` is deliberately not checked — it is optional by design (see Doc targeting), so absence is legitimate. The same filter is reused for both the count and the file write, so the two cannot disagree. The optional-field schema made this *more* necessary, not less: once "field missing" is sometimes valid, only an explicit gate can tell valid-sparse from malformed. Covered by the regression test (malformed events in the fake sweep output must not reach the friction file).
+
+**Significance cap (capture prompt).** One overzealous sweep could emit a dozen marginal events and instantly trip the threshold-5 startup reminder — and the reminder's credibility is a UX asset: it only works if it is rare and deserved. The prompt now allows at most the five most significant events, ordered most significant first. The cap bounds per-session noise; the ordering means a truncated review still sees the strongest events first. Five was chosen to match the default `TOGI_EVENT_THRESHOLD`: a single session can fill the reminder quota only with five genuinely significant events, which is exactly when firing immediately is correct.
+
+## Feedback loop: processed-event archive + recurrence detection (decided 2026-06-13)
+
+Togi's promise is "PR merged → agent reads better docs → fewer stumbles", but nothing ever verified the last arrow — and `update-context-docs`' cleanup phase actively destroyed the data needed to check, `rm`-ing friction files after processing. A gap recurring *after* its fix landed is the most valuable signal in the system (the rule is too weak, lives in a doc agents don't read, or the PR never merged) and was indistinguishable from a brand-new event.
+
+Now `update-context-docs` archives instead of deletes: one file per run under `.claude/friction/processed/`, every event (excluded ones included) annotated with `processed_date`, `outcome` (`doc_updated`/`excluded`), `target_docs`, and `branch`. Before editing, the skill compares incoming event groups against the archive — semantically, by `slug` + `body`; slugs are model-generated per sweep, so string equality misses true matches — and flags:
+
+- **Recurrence after fix** (`doc_updated`, event `date` > `processed_date`): the fix didn't take. Severity floor: medium; strengthen or relocate the previous rule instead of appending a near-duplicate. Caveat the skill is told about: a recurrence may just mean the fix PR hasn't merged yet.
+- **Recurrence after exclusion**: previously dismissed as noise and came back — surfaced to the user as "probably real after all".
+
+Design constraints honored:
+
+- The session-start reminder counts `find -maxdepth 1` and the skill's pending scan does the same, so archived events are invisible to both by construction — no double-counting, no re-processing.
+- `.gitignore`'s `/.claude/friction/` already covers the archive: it is local history, never committed (same privacy posture as pending events).
+- The archive write is a `Write` into protected `.claude` and therefore prompts once per run — accepted, not routed around (see Protected paths).
+- Archive files older than ~6 months are pruned at cleanup: recurrence that slow is indistinguishable from new friction, and the archive must not grow unbounded.
+
+Trade-off accepted: excluded events are no longer "acceptable losses" (the old cleanup wording) — they persist in the archive as history. That is the point: exclusion was a judgment, and the archive is what lets a wrong judgment be caught.
+
 ## Protected paths vs. skill permissions (docs-sourced 2026-06-12 — NOT live-verified)
 
 `.claude` is on Claude Code's fixed protected-directories list (https://code.claude.com/docs/en/permission-modes#protected-paths). Writes to protected paths are **never auto-approved** in any mode except `bypassPermissions`, and the check runs **before** allow rules are evaluated — so neither `permissions.allow` in settings nor a skill's `allowed-tools` can pre-approve a write to `.claude/settings.json` or `.claude/settings.local.json`. The two files are treated identically. Rationale (theirs, and ours): settings define permissions, so nothing running under the permission system may rewrite them silently.

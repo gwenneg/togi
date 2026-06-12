@@ -6,6 +6,8 @@ Apply both filters before including an event:
 
 Skip user errors, one-off scope changes, transient errors, and case-specific corrections.
 
+Include at most the five most significant events, ordered most significant first. A flood of marginal events is noise to the developer who reviews them — fewer, stronger events serve better.
+
 Output a JSON array — `[]` if nothing qualifies. Each qualifying event is an object with these fields (all required except where noted):
 
 - `type`: one of `correction`, `clarification`, `mistake`, `denial`

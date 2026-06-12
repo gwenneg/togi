@@ -125,17 +125,33 @@ log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID -
 
   # Write all qualifying events as a single JSON file — one file per session.
   # Bash adds session metadata; the update-context-docs skill reads JSON directly.
-  _count=$(jq 'if type == "array" then length else 0 end' "$_out" 2>/dev/null || echo 0)
-  log "session-end.sh" "sweep returned $_count qualifying event(s)"
+  # Schema gate: keep only events that carry the required capture fields as
+  # non-empty strings and a known type. A malformed event written now would
+  # surface as confusion at processing time, possibly weeks later — drop it
+  # here and log it instead. misleading_doc is optional by design (see
+  # assets/prompts/capture-friction.md), so its absence is not checked.
+  _valid='if type == "array" then map(select(
+      (type == "object")
+      and ([.type, .slug, .captured_by, .body] | all(type == "string" and length > 0))
+      and (.type | IN("correction", "clarification", "mistake", "denial"))
+    )) else [] end'
+  _total=$(jq 'if type == "array" then length else 0 end' "$_out" 2>/dev/null || echo 0)
+  _count=$(jq "$_valid | length" "$_out" 2>/dev/null || echo 0)
+  # ${...:-0}: jq emits nothing (yet exits 0) on empty input — e.g. claude
+  # crashed or the prompt redirect failed — leaving the counts empty strings.
+  _total="${_total:-0}"
+  _count="${_count:-0}"
+  log "session-end.sh" "sweep returned $_total event(s), $_count valid after schema gate"
+  if [ "$_total" -gt "$_count" ]; then
+    log "session-end.sh" "dropped $((_total - _count)) malformed event(s)"
+  fi
 
-  # ${_count:-0}: jq emits nothing (yet exits 0) on empty input — e.g. claude
-  # crashed or the prompt redirect failed — leaving _count an empty string.
-  if [ "${_count:-0}" -gt 0 ]; then
+  if [ "$_count" -gt 0 ]; then
     _friction_dir="${CLAUDE_PROJECT_DIR:-.}/.claude/friction"
     mkdir -p "$_friction_dir"
     _file="${_friction_dir}/$(date +%Y%m%dT%H%M%S)-${SESSION_ID}.json"
     jq --arg session "$SESSION_ID" --arg date "$(date +%Y-%m-%d)" --arg cache "$CACHE_STATE" \
-      '[.[] | . + {session: $session, date: $date, cache: $cache}]' "$_out" > "$_file"
+      "$_valid"' | map(. + {session: $session, date: $date, cache: $cache})' "$_out" > "$_file"
     log "session-end.sh" "wrote $_file ($_count event(s))"
   fi
 

@@ -87,9 +87,10 @@ When enough sessions have accumulated unprocessed friction, togi shows a reminde
 The skill will:
 
 1. Group the accumulated friction events by root cause and propose the doc(s) where each fix belongs — placement is decided here, with full repo visibility, not by the sweep
-2. Let you exclude events that look like noise or redirect a proposed target
-3. Edit (or create) the target documentation files
-4. Open a pull request with a friction metrics summary
+2. Flag recurrences — events whose root cause an earlier run already fixed (the fix didn't take) or excluded as noise (it was probably real)
+3. Let you exclude events that look like noise or redirect a proposed target
+4. Edit (or create) the target documentation files
+5. Open a pull request with a friction metrics summary, archiving the processed events locally (`.claude/friction/processed/`, git-ignored) so future runs can detect recurrences
 
 ## Configuration
 
