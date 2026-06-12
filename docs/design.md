@@ -108,17 +108,17 @@ Two small guards on what a sweep can inject into the pipeline, shipped together:
 
 Togi's promise is "PR merged → agent reads better docs → fewer stumbles", but nothing ever verified the last arrow — and `update-context-docs`' cleanup phase actively destroyed the data needed to check, `rm`-ing friction files after processing. A gap recurring *after* its fix landed is the most valuable signal in the system (the rule is too weak, lives in a doc agents don't read, or the PR never merged) and was indistinguishable from a brand-new event.
 
-Now `update-context-docs` archives instead of deletes: one file per run under `.claude/friction/processed/`, every event (excluded ones included) annotated with `processed_date`, `outcome` (`doc_updated`/`excluded`), `target_docs`, and `branch`. Before editing, the skill compares incoming event groups against the archive — semantically, by `slug` + `body`; slugs are model-generated per sweep, so string equality misses true matches — and flags:
+Now `update-context-docs` archives instead of deletes: one file per run under `.claude/friction/archive/`, every event (excluded ones included) annotated with `processed_date`, `outcome` (`doc_updated`/`excluded`), `target_docs`, and `branch`. Before editing, the skill compares incoming event groups against the archive — semantically, by `slug` + `body`; slugs are model-generated per sweep, so string equality misses true matches — and flags:
 
 - **Recurrence after fix** (`doc_updated`, event `date` > `processed_date`): the fix didn't take. Severity floor: medium; strengthen or relocate the previous rule instead of appending a near-duplicate. Caveat the skill is told about: a recurrence may just mean the fix PR hasn't merged yet.
 - **Recurrence after exclusion**: previously dismissed as noise and came back — surfaced to the user as "probably real after all".
 
 Design constraints honored:
 
-- The session-start reminder counts `find -maxdepth 1` and the skill's pending scan does the same, so archived events are invisible to both by construction — no double-counting, no re-processing.
-- `.gitignore`'s `/.claude/friction/` already covers the archive: it is local history, never committed (same privacy posture as pending events).
+- Pending and archived events live in sibling directories — `.claude/friction/pending/` (written by the sweep, counted by the session-start reminder) and `.claude/friction/archive/` (written at processing, read only by the recurrence check) — so every consumer reads exactly the directory it means. An earlier draft kept pending files at the friction root with a `processed/` subfolder, which made correctness hinge on every scan remembering `-maxdepth 1`; renamed 2026-06-13, pre-release, with no installed base, so no migration path is kept.
+- `.gitignore`'s `/.claude/friction/` covers both directories: local history, never committed (same privacy posture as pending events).
 - The archive write is a `Write` into protected `.claude` and therefore prompts once per run — accepted, not routed around (see Protected paths).
-- Archive files older than ~6 months are pruned at cleanup: recurrence that slow is indistinguishable from new friction, and the archive must not grow unbounded.
+- Archive files older than ~2 months are pruned at cleanup. The window only needs to cover PR-merge lag plus a few sessions on the fixed docs — recurrence slower than that is indistinguishable from new friction — and the whole archive enters the skill's context every run, so retention is a context-bloat knob, not just disk hygiene.
 
 Trade-off accepted: excluded events are no longer "acceptable losses" (the old cleanup wording) — they persist in the archive as history. That is the point: exclusion was a judgment, and the archive is what lets a wrong judgment be caught.
 

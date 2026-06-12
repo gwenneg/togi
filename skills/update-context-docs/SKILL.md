@@ -3,7 +3,7 @@ name: update-context-docs
 description: Review captured friction events, choose the docs where each fix belongs, apply the edits, and open a pull request
 allowed-tools:
   - Bash(find *)
-  - Bash(rm .claude/friction/*)
+  - Bash(rm .claude/friction/pending/*)
   - Bash(git add *)
   - Bash(git branch *)
   - Bash(git checkout *)
@@ -21,10 +21,10 @@ allowed-tools:
 
 ## Phase 1: Read friction events
 
-Find the pending session files — `*.json` directly in `.claude/friction/`, without descending into `.claude/friction/processed/` (the archive of already-processed events, read in Phase 2):
+Find the pending session files — `*.json` in `.claude/friction/pending/` (already-processed events live in the sibling `.claude/friction/archive/`, read in Phase 2):
 
 ```bash
-find .claude/friction -maxdepth 1 -name '*.json'
+find .claude/friction/pending -name '*.json'
 ```
 
 If none exist, report "No friction events to process." and stop.
@@ -56,7 +56,7 @@ Survey the repo's context docs — `CLAUDE.md`, committed `.claude/*.md` files, 
 
 ### Recurrence check
 
-Read the archive: every `*.json` under `.claude/friction/processed/` (absent until the first run completes). Archived events carry the original capture fields plus `processed_date`, `outcome` (`doc_updated` or `excluded`), `target_docs` (for `doc_updated`), and `branch`.
+Read the archive: every `*.json` under `.claude/friction/archive/` (absent until the first run completes). Archived events carry the original capture fields plus `processed_date`, `outcome` (`doc_updated` or `excluded`), `target_docs` (for `doc_updated`), and `branch`.
 
 Compare each event group against the archive by root cause — judge from `slug` and `body` semantically; slugs are model-generated per sweep, so string equality will miss true matches:
 
@@ -131,7 +131,7 @@ If a `promptfoo.yaml` or similar eval config exists, propose a new test case for
 
 Processed events are archived, not destroyed — the Phase 2 recurrence check depends on this history. Whether a fix actually took is the one measure of togi's value, and it can only be measured against what was fixed before.
 
-1. Write one archive file for the run — `.claude/friction/processed/YYYY-MM-DD.json` (append `-2`, `-3`, … if taken) — containing every event from the processed session files, including excluded ones, each annotated with:
+1. Write one archive file for the run — `.claude/friction/archive/YYYY-MM-DD.json` (append `-2`, `-3`, … if taken) — containing every event from the processed session files, including excluded ones, each annotated with:
    - `processed_date`: today's ISO date
    - `outcome`: `doc_updated` or `excluded`
    - `target_docs`: the doc(s) edited for its group (`doc_updated` only)
@@ -141,9 +141,9 @@ Processed events are archived, not destroyed — the Phase 2 recurrence check de
 2. Delete the original session files:
 
    ```bash
-   rm .claude/friction/<filename>.json
+   rm .claude/friction/pending/<filename>.json
    ```
-3. Delete archive files whose `processed_date` is more than 6 months old — a gap recurring that slowly is indistinguishable from new friction, and an unbounded archive only slows the recurrence check.
+3. Delete archive files whose `processed_date` is more than 2 months old. The window only needs to span PR-merge lag plus a few sessions on the fixed docs — a gap recurring slower than that is indistinguishable from new friction — and the whole archive is read into context at every run, so stale events are pure bloat.
 
 The archive lives under `.claude/friction/`, which setup git-ignores — it is local history, never committed.
 
