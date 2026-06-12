@@ -108,8 +108,10 @@ log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID -
   # trap a HUP kills the parser and the session's events are silently lost
   # (disown is not HUP protection; it only stops the parent shell forwarding it).
   trap '' HUP
-  _out="$(mktemp /tmp/togi-claude-out.XXXXXX)"
-  _err="$(mktemp /tmp/togi-claude-err.XXXXXX)"
+  # ${TMPDIR:-/tmp}: respect the platform tmpdir — on macOS that is a per-user
+  # 0700 directory, so session-derived sweep output isn't even listable by others.
+  _out="$(mktemp "${TMPDIR:-/tmp}/togi-claude-out.XXXXXX")"
+  _err="$(mktemp "${TMPDIR:-/tmp}/togi-claude-err.XXXXXX")"
   nohup env TOGI_HEADLESS=1 claude -p --resume "$SESSION_ID" --fork-session \
     --disallowedTools "$DENY_TOOLS" ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} \
     < "${CLAUDE_PLUGIN_ROOT}/assets/prompts/capture-friction.md" >"$_out" 2>"$_err"
