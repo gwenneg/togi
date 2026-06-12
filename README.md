@@ -157,7 +157,7 @@ This posture is not a complete defense, and the gaps point to complementary cont
 
 Releases are deliberate — pushing to `main` does **not** ship code to users. `plugin.json` carries **no `version` field on purpose**, so the plugin's identity resolves to the pinned commit SHA. That makes the SHA do double duty — it is both the integrity pin *and* the update cache key — so a release is a **single bump** with no second knob to keep in sync:
 
-1. Land all changes on `main`. The final commit is the release commit.
+1. Land all changes on `main`. The final commit is the release commit. If the plugin `description` changed, keep `plugin.json` and the `marketplace.json` plugin entry identical — nothing enforces it, and they drift otherwise.
 2. Tag the release commit and push the tag (human-readable naming only — the pin resolves the SHA, not the tag):
    ```bash
    git tag -s vX.Y.Z -m "togi vX.Y.Z" && git push origin vX.Y.Z

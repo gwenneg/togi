@@ -2,12 +2,13 @@
   "name": "togi",
   "description": "Sharpen AI context docs through friction (研ぎ)",
   "owner": {
-    "name": "Gwenneg Lepage"
+    "name": "Gwenneg Lepage",
+    "url": "https://github.com/gwenneg"
   },
   "plugins": [
     {
       "name": "togi",
-      "description": "Capture AI agent friction events during sessions and turn them into context doc improvements via pull requests",
+      "description": "Reviews each ended session for friction — corrections, clarifications, mistakes, denied tool calls — with one extra API call per session, and turns recurring doc gaps into context-doc pull requests.",
       "source": {
         "source": "github",
         "repo": "gwenneg/togi",
