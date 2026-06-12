@@ -102,7 +102,7 @@ log "session-end.sh" "cache=${CACHE_STATE} model_args='${MODEL_ARGS[*]:-<session
 #   --bare                 — auth becomes ANTHROPIC_API_KEY-only, breaking
 #                            subscription (OAuth) users
 DENY_TOOLS="Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Task,Read,Glob,Grep"
-log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID --fork-session --disallowedTools $DENY_TOOLS ${MODEL_ARGS[*]:-})"
+log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID --fork-session --output-format json --disallowedTools $DENY_TOOLS ${MODEL_ARGS[*]:-})"
 
 (
   # Ignore SIGHUP: closing the terminal (or an ssh disconnect) sends HUP to the
@@ -115,13 +115,42 @@ log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID -
   # 0700 directory, so session-derived sweep output isn't even listable by others.
   _out="$(mktemp "${TMPDIR:-/tmp}/togi-claude-out.XXXXXX")"
   _err="$(mktemp "${TMPDIR:-/tmp}/togi-claude-err.XXXXXX")"
+  # --output-format json wraps the response in a result envelope carrying
+  # measured sweep telemetry (total_cost_usd, usage). It is client-side
+  # formatting only — the API request (prompt, tool definitions) is unchanged,
+  # so the warm-cache property is unaffected. Verified 2026-06-13: the
+  # envelope's cost reconciles exactly with this run's own usage at list
+  # prices — a fork-resume does NOT import the resumed session's prior spend;
+  # prior turns appear only as the input replay (see docs/design.md, Sweep
+  # telemetry).
   nohup env TOGI_HEADLESS=1 claude -p --resume "$SESSION_ID" --fork-session \
+    --output-format json \
     --disallowedTools "$DENY_TOOLS" ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} \
     < "${CLAUDE_PLUGIN_ROOT}/assets/prompts/capture-friction.md" >"$_out" 2>"$_err"
   _exit=$?
   log "session-end.sh" "claude exited with status $_exit"
   while IFS= read -r _line; do log "claude:error"    "$_line"; done < "$_err"
   while IFS= read -r _line; do log "claude:response" "$_line"; done < "$_out"
+
+  # Envelope telemetry — every field optional: a crashed claude leaves an
+  # empty or partial file, and total_cost_usd is unverified on auth modes
+  # other than this account's. The prediction-vs-measured line is the
+  # instrument for the cache-TTL question: a sweep predicted cold that shows
+  # large cache reads proves the 290 s threshold too conservative.
+  _is_error=$(jq -r '.is_error // false' "$_out" 2>/dev/null || echo "")
+  _cost=$(jq -r '.total_cost_usd // empty' "$_out" 2>/dev/null || echo "")
+  _cache_read=$(jq -r '.usage.cache_read_input_tokens // empty' "$_out" 2>/dev/null || echo "")
+  _duration=$(jq -r '.duration_ms // empty' "$_out" 2>/dev/null || echo "")
+  _fork_id=$(jq -r '.session_id // empty' "$_out" 2>/dev/null || echo "")
+  log "session-end.sh" "sweep telemetry: cost_usd=${_cost:-n/a} cache_read_tokens=${_cache_read:-n/a} (predicted: $CACHE_STATE) duration_ms=${_duration:-n/a} fork_session=${_fork_id:-n/a} is_error=${_is_error:-n/a}"
+
+  # The model's text lives in the envelope's .result as a string; extract and
+  # parse the events array from it. Every failure degrades to zero events
+  # (raw text already in the debug log above): missing/partial envelope,
+  # is_error=true (.result is then an error message, not events), or a
+  # disobedient model wrapping the array in prose.
+  _events=$(jq '.result | fromjson? // []' "$_out" 2>/dev/null || echo '[]')
+  _events="${_events:-[]}"
 
   # Write all qualifying events as a single JSON file — one file per session.
   # Bash adds session metadata; the update-context-docs skill reads JSON directly.
@@ -135,10 +164,9 @@ log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID -
       and ([.type, .slug, .captured_by, .body] | all(type == "string" and length > 0))
       and (.type | IN("correction", "clarification", "mistake", "denial"))
     )) else [] end'
-  _total=$(jq 'if type == "array" then length else 0 end' "$_out" 2>/dev/null || echo 0)
-  _count=$(jq "$_valid | length" "$_out" 2>/dev/null || echo 0)
-  # ${...:-0}: jq emits nothing (yet exits 0) on empty input — e.g. claude
-  # crashed or the prompt redirect failed — leaving the counts empty strings.
+  _total=$(printf '%s' "$_events" | jq 'if type == "array" then length else 0 end' 2>/dev/null || echo 0)
+  _count=$(printf '%s' "$_events" | jq "$_valid | length" 2>/dev/null || echo 0)
+  # ${...:-0}: belt and braces against jq emitting nothing yet exiting 0.
   _total="${_total:-0}"
   _count="${_count:-0}"
   log "session-end.sh" "sweep returned $_total event(s), $_count valid after schema gate"
@@ -150,8 +178,15 @@ log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID -
     _friction_dir="${CLAUDE_PROJECT_DIR:-.}/.claude/friction/pending"
     mkdir -p "$_friction_dir"
     _file="${_friction_dir}/$(date +%Y%m%dT%H%M%S)-${SESSION_ID}.json"
-    jq --arg session "$SESSION_ID" --arg date "$(date +%Y-%m-%d)" --arg cache "$CACHE_STATE" \
-      "$_valid"' | map(. + {session: $session, date: $date, cache: $cache})' "$_out" > "$_file"
+    # sweep_cost_usd / sweep_cache_read_tokens: measured telemetry, stamped
+    # only when the envelope provided it. Per-event rather than per-file
+    # (every event of a session shares its sweep's values) because the file
+    # is a flat array with no header object, like the other stamps.
+    printf '%s' "$_events" | jq --arg session "$SESSION_ID" --arg date "$(date +%Y-%m-%d)" --arg cache "$CACHE_STATE" \
+      --arg cost "$_cost" --arg cache_read "$_cache_read" \
+      "$_valid"' | map(. + {session: $session, date: $date, cache: $cache}
+        + (if $cost       != "" then {sweep_cost_usd:          ($cost       | tonumber)} else {} end)
+        + (if $cache_read != "" then {sweep_cache_read_tokens: ($cache_read | tonumber)} else {} end))' > "$_file"
     log "session-end.sh" "wrote $_file ($_count event(s))"
   fi
 

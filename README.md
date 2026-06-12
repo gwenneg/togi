@@ -111,6 +111,8 @@ At the end of each session, togi launches one headless `claude -p --resume --for
 
 **Subscription users:** the sweep draws from your plan's usage limits rather than billing dollars.
 
+**Measured, not just estimated:** each sweep records its actual cost and cache usage (`sweep_cost_usd`, `sweep_cache_read_tokens`) into the friction events it writes, and `/togi:update-context-docs` reports the summed sweep cost in its PR metrics — so the figures above are verifiable against your own data.
+
 ## Privacy
 
 The sweep resumes your session via `claude -p --resume --fork-session` on your own account. Your session transcript is not sent to any third party — the sweep runs as a headless Claude Code process under your own credentials, exactly as if you had resumed the session yourself. The original session transcript is left byte-identical after the fork.
