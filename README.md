@@ -4,7 +4,7 @@
 
 Togi is a [Claude Code](https://claude.ai/code) plugin that captures the moments when an AI coding agent stumbles — corrections, clarifications, wrong assumptions, denied tool calls — and turns them into context doc improvements via pull requests.
 
-Each of those stumbles is a **friction event**: a signal that the shared context docs failed. Togi captures them invisibly at session end, accumulates them silently, and reminds the team to process them when enough have built up. Processing means editing the docs that caused the friction, so the same mistake doesn't recur.
+Each of those stumbles is a **friction event**: a signal that the shared context docs failed. Togi captures them invisibly at session end, accumulates them silently, and reminds the developer who hits the threshold to process them. Processing means editing the docs that caused the friction, so the same mistake doesn't recur — and the fix lands as a pull request the whole team reviews.
 
 ## How it works
 
@@ -46,32 +46,35 @@ The togi skills (`/togi:setup`, `/togi:disable`, `/togi:enable`, `/togi:update-c
 The setup skill will:
 
 1. Explain what togi does, disclose the cost model, and ask for consent
-2. Configure the marketplace entry and plugin enablement in your project
-3. Open a pull request with all changes committed
+2. Commit an adoption note — `.claude/togi.md` plus a `CONTRIBUTING.md`/`README.md` pointer — and the `.gitignore` entries; **nothing executable**
+3. Offer to enable capture for you — this repo only, or all your repos
+4. Open a pull request with all changes committed
 
-The SessionStart and SessionEnd hooks are part of the plugin itself and require no project-side configuration. They are active as soon as the plugin is installed: friction capture — including the end-of-session sweep — runs by default (`TOGI_ENABLED` defaults to `1`), whether or not `/togi:setup` has been run. Opt out at any time with `/togi:disable`.
+The SessionStart and SessionEnd hooks are part of the plugin itself and require no project-side configuration. They are **dormant by default**: `TOGI_ENABLED` defaults to `0`, so nothing is captured, swept, or billed until you opt in — `/togi:setup` offers this at the end, or run `/togi:enable` at any time. Because the hooks do nothing unless you opted in, the plugin's install scope doesn't matter: a user-scope install (Claude Code's default) stays silent in every repo where you haven't enabled togi.
 
 ### After setup (team)
 
-`/togi:setup` commits the configuration to `.claude/settings.json`. Any developer who pulls the repo gets the togi skills automatically — no manual step needed.
+`/togi:setup` commits **no executable configuration** — no marketplace registration, no plugin enablement. It commits an adoption note: `.claude/togi.md` with the install commands and cost model, plus a pointer in `CONTRIBUTING.md` or `README.md`. Each developer installs togi deliberately (the same two `/plugin` commands above, then `/togi:enable`) — togi only ever lands on a machine whose owner installed it. Developers who already have the plugin get a one-time notice in repos that adopted togi, pointing them to `/togi:enable`; beyond that, nothing runs on their account without their say-so.
 
 ## Usage
 
-### Disable friction capture
+### Enable friction capture (opt in)
 
-Friction capture is **enabled by default** — it affects everyone who uses Claude Code in this repo. To opt out personally:
+Friction capture is **opt-in per developer** — nothing runs for you until you enable it:
+
+```
+/togi:enable
+```
+
+You choose the scope: **this repo only** (`TOGI_ENABLED=1` in `.claude/settings.local.json`) or **all your repos** (`~/.claude/settings.json`). Both are personal and never committed.
+
+### Disable friction capture
 
 ```
 /togi:disable
 ```
 
-This sets `TOGI_ENABLED=0` in `.claude/settings.local.json` (not committed, not shared).
-
-### Re-enable friction capture
-
-```
-/togi:enable
-```
+You choose the scope, mirroring enable: **this repo only** (`TOGI_ENABLED=0` in `.claude/settings.local.json` — this also overrides a global opt-in, for this repo only) or **all your repos** (`~/.claude/settings.json`). Both are personal and never committed. Note the one asymmetry: a global disable does not override repos where you opted in individually — disable those per repo.
 
 ### Process friction events
 
@@ -93,12 +96,12 @@ All configuration is via environment variables, set in `.claude/settings.json` (
 
 | Variable | Default | Description |
 |---|---|---|
-| `TOGI_ENABLED` | `1` | The only switch. While `1` (the default), friction capture — including the end-of-session sweep (one API call, billed or drawn from plan limits) — is active. Set to `0` to disable (personal: use `.claude/settings.local.json`) |
+| `TOGI_ENABLED` | `0` | The only switch, **off by default**. Set to `1` to activate friction capture — including the end-of-session sweep (one API call, billed or drawn from plan limits) — via `/togi:setup` or `/togi:enable` (repo scope: `.claude/settings.local.json`; global scope: `~/.claude/settings.json`). A repo-local `0` overrides a global `1` |
 | `TOGI_EVENT_THRESHOLD` | `5` | Friction events before the startup reminder appears |
 
 ## Cost
 
-At the end of each session, togi launches one headless `claude -p --resume --fork-session` call to sweep the session for friction events. This is billed to your Anthropic API account (or drawn from your subscription's usage limits). The sweep is enabled by default: it runs from the moment the plugin is installed, with `TOGI_ENABLED=1` (the default) as the only gate.
+At the end of each session, togi launches one headless `claude -p --resume --fork-session` call to sweep the session for friction events. This is drawn from your subscription's usage limits (or billed to your Anthropic API account). The sweep runs **only for developers who opted in** (`TOGI_ENABLED=1` via `/togi:setup` or `/togi:enable`) — an installed-but-unenabled plugin makes no API calls at all.
 
 **Typical cost: $0.05–$0.20 per session.** This low cost comes from the prompt cache: Claude Code refreshes the cache on every turn, and togi launches the sweep immediately at session end — so the session's tokens are replayed at roughly 10% of normal input price.
 
@@ -179,7 +182,7 @@ Because auto-update is off, Claude Code gives **no proactive notification** when
 
 Step 1 is required: until you refresh the catalog, Claude Code has no knowledge that a newer release exists. Step 2 then installs the plugin at the commit the refreshed catalog pins. If Claude Code prompts you to reload afterward, run `/reload-plugins`.
 
-**Note for existing users upgrading from v0.3.0:** v0.4.0 replaces per-turn capture with an end-of-session sweep that makes one API call per session (typically $0.05–$0.20). The sweep is enabled as soon as the updated plugin is installed — `TOGI_ENABLED` defaults to `1` and is the only switch. Any developer can opt out with `/togi:disable`.
+**Note for existing users:** v0.4.0 replaced per-turn capture with an end-of-session sweep that makes one API call per session (typically $0.05–$0.20). As of the opt-in release, capture is **off by default**: after updating, nothing runs until you opt in with `/togi:enable` (or re-run `/togi:setup`).
 
 ## License
 

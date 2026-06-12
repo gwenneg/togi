@@ -57,6 +57,19 @@ The sweep skips two of these as non-final ends:
 
 Log live `reason` values (TOGI_DEBUG=1) before relying on any finer distinctions, and re-verify this table when CLI behavior changes.
 
+## Cost model derivation (2026-06-12 — pricing arithmetic, not measured invoices)
+
+The "$0.05–$0.20 per session" figure used in the README, the setup disclosure, and the plugin description derives as follows:
+
+- A sweep replays the **entire session context as input** via `--resume --fork-session`; the capture prompt (~200 tokens) and the JSON output (hundreds of tokens) are negligible next to it.
+- Warm prompt-cache reads bill at **~0.1× base input price** (https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
+- Reference case: a **150K-token session at Opus-class pricing** ($5/MTok input → ~$0.50/MTok cache-read) ≈ **$0.08 per sweep**. The $0.05–$0.20 range stretches that across ~50K–300K-token sessions.
+- Cold sweep = full input price = ~10× warm (~$0.75 at 150K on Opus). The Haiku fallback caps the cold case at cold-Haiku pricing ($1/MTok → ~$0.15 at 150K) — roughly cold-Opus ÷ 5, which is why session-end.sh falls back to Haiku rather than sweeping cold on the session's model.
+
+Prices used (per MTok, input / ~cache-read; cached 2026-06-04): Opus 4.8 $5.00 / ~$0.50 · Sonnet 4.6 $3.00 / ~$0.30 · Haiku 4.5 $1.00 / ~$0.10 · Fable 5 $10.00 / ~$1.00.
+
+Caveats: the range is **Opus-referenced** — sessions on cheaper models sweep cheaper, and a long **Fable 5** session can exceed it (~$1/MTok cache-read → ~$0.25 at 250K tokens). Subscription users draw plan limits, not dollars. When prices change, re-derive as `session tokens × cache-read price` and update the figure everywhere it appears (README Cost, setup Phase 1, `.claude/togi.md` template, plugin descriptions, the opt-in notice in session-start.sh).
+
 ## Sweep tool lockdown (verified 2026-06-11)
 
 - Headless `claude -p` INHERITS permission allow rules from user/project/local settings: in a project whose settings allow `Bash(echo *)`, a plain `-p` session executed Bash without prompting. A prompt injection in swept session content could therefore run any pre-allowed command, unsupervised. The sweep needs zero tools, so all action-capable tools are denied.
@@ -78,17 +91,33 @@ Consequences for togi:
 
 - The settings writes in `/togi:enable`, `/togi:disable`, and `/togi:setup` **always prompt**. This is acceptable — the write toggles a consent flag, and the prompt puts that approval in front of exactly the right person at the right moment.
 - `enable` and `disable` carry **no `allowed-tools`**: an allowlist cannot deliver promptless operation for skills whose whole job is a protected write, so it buys nothing there (removed 2026-06-12).
-- `setup` keeps `allowed-tools` only for steps outside `.claude` — the `.gitignore` edits, the read-only `jq -e` report checks, and the git/gh flow. The entries that existed solely for protected-path writes (`Bash(mkdir*)`, `Bash(touch .claude/*)`, `Bash(mv .claude/*)`) were removed (2026-06-12): they could never pre-approve those writes, and a dead grant is worse than a prompt.
+- `setup` keeps `allowed-tools` only for steps that pre-approval can actually serve: `Write`/`Read`/`Edit` for the non-protected files it commits (`.gitignore` and the CONTRIBUTING/README pointer — the adoption note `.claude/togi.md` is protected and prompts regardless), and the git/gh flow. Everything else was removed (2026-06-12): `Bash(mkdir*)`, `Bash(touch .claude/*)`, `Bash(mv .claude/*)`, and later `Bash(jq*)` (its only remaining use is the Phase 3 opt-in write to protected settings files) and `Bash(grep*)` (its only use was settings.json presence checks that no longer exist). A dead grant is worse than a prompt.
 - Whether the check inspects Bash redirect targets (`> .claude/foo.tmp`) or `mv` side effects is undocumented. Togi deliberately does **not** rely on that either way — routing writes through a vehicle the checker might miss would be evading a safety feature via an undocumented gap.
+- `setup` Phase 3 delegates the opt-in to the `enable` skill via the `Skill` tool (`Skill(togi:enable)` in allowed-tools; `enable` accepts `repo`/`all` arguments to skip its scope question), so the opt-in commands live in exactly one file. Docs-sourced: the Skill tool "executes a skill within the main conversation" and `Skill(name)` is the documented permission syntax — but skill-from-skill nesting behavior is NOT explicitly documented. Verify on the first live setup run.
 
-## Activation model (decided 2026-06-11)
+## Activation model (revised 2026-06-12 — opt-in per developer)
 
-`TOGI_ENABLED` (default `1`) is the only switch: friction capture — including the end-of-session sweep (one API call, billed or drawn from plan limits) — is active from the moment the plugin is installed. `/togi:setup` configures the project for the team and discloses the cost model; it does not gate capture. Opt-out is per-developer via `/togi:disable` (`TOGI_ENABLED=0` in `.claude/settings.local.json`).
+`TOGI_ENABLED` defaults to **`0`**: an installed plugin is dormant — hooks exit immediately, no sweep, no files, no cost. Each developer opts in personally via `/togi:setup` (offered at the end) or `/togi:enable`, at one of two scopes, both uncommitted:
 
-Two gating mechanisms from the v0.4 plan are rejected, not forgotten — do not reintroduce them:
+- **repo**: `env.TOGI_ENABLED = "1"` in `.claude/settings.local.json` — this repo only
+- **global**: same key in `~/.claude/settings.json` — every repo for this user
 
-- `TOGI_SWEEP_ENABLED` (project-side consent flag written by setup) — never implemented, decided against.
+**Why the reversal** (this section previously said enabled-by-default, decided 2026-06-11): `/plugin marketplace add` registers user-globally (`~/.claude/plugins/known_marketplaces.json` — there is no project-scoped form), and `/plugin install` defaults to **user scope**, so the hooks fire in every repo on the machine. Enabled-by-default therefore meant billing sweeps in unrelated repos and writing `.claude/friction/` files into repos whose `.gitignore` was never configured — an accidental-commit/leak hazard. Opt-in also makes install scope irrelevant: a user-scope install is safe because it is dormant everywhere the developer hasn't enabled it.
+
+A repo-local `TOGI_ENABLED=0` overrides a global `1` — settings precedence is local > project > user (docs-sourced, NOT live-verified) — which is what keeps `/togi:disable` meaningful for global opt-ins. Both `/togi:enable` and `/togi:disable` ask for scope (this repo / all my repos); the same precedence cuts the other way too: a global `0` does **not** override repo-local `1`s, so repos opted in individually must be disabled individually — the disable skill's global output states this exception instead of over-promising.
+
+**One-time notice:** in repos carrying the committed adoption note `.claude/togi.md` (see Team distribution below), SessionStart shows not-yet-opted-in developers a single notice (cost + `/togi:enable`) and drops a marker at `.claude/togi-notice-shown` (git-ignored by setup) so it never repeats. Repos without the adoption note stay completely silent — that is the guard against user-scope installs nagging in unrelated projects.
+
+Still rejected, do not reintroduce:
+
+- `TOGI_SWEEP_ENABLED` as a *committed project-level* consent flag (the v0.4-plan mechanism) — consent stays personal and uncommitted.
 - `TOGI_MIN_TURNS` (skip sweeps for sessions below a turn threshold) — shipped in v0.4.0, removed in v0.4.5, stays out.
+
+## Team distribution (decided 2026-06-12 — nothing executable in git)
+
+`/togi:setup` commits **no** `extraKnownMarketplaces` and **no** `enabledPlugins`. Committed entries are the platform's documented team pattern ("Require marketplaces for your team"), and teammates do get a prompt at folder-trust — but the prompt's decline behavior is undocumented, hooks get no separate trust step, and even "dormant" hooks execute at every session boundary. Committing enablement would grant togi's author code execution on every teammate's machine *on their behalf*, which contradicts togi's own supply-chain posture (README): code lands on a machine only when its owner installs it.
+
+Instead the repo carries an adoption note: `.claude/togi.md` (install commands + cost model; inert) plus a pointer section in `CONTRIBUTING.md`/`README.md`, with the setup PR as the team's review artifact. The adoption note doubles as the signal for the one-time opt-in notice. Trade-off accepted: adoption is three manual commands per developer instead of zero, and developers who never install the plugin see no in-product discovery at all — the pointer section carries that load.
 
 ## Distribution pinning (2026-06-11)
 

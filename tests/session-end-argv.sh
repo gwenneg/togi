@@ -133,6 +133,34 @@ FAKE_EOF
 run_test "warm session (no haiku)"       "fresh" "no"
 run_test "cold session (haiku fallback)" "old"   "yes"
 
+# Opt-in default: with TOGI_ENABLED unset, the hook must exit without ever
+# invoking claude — an installed-but-unenabled plugin makes no API calls.
+echo "--- opt-in default (TOGI_ENABLED unset → no sweep) ---"
+TEST_FAILURES=0
+tmpdir="$(mktemp -d)"
+fake_bin="$tmpdir/bin"; mkdir -p "$fake_bin"
+printf '#!/usr/bin/env bash\ntouch "$TOGI_TEST_RAN"\n' > "$fake_bin/claude"
+chmod +x "$fake_bin/claude"
+transcript="$tmpdir/transcript.jsonl"
+printf '{"type":"user","timestamp":"2020-01-01T00:00:00.000Z","message":{"content":"t"}}\n' > "$transcript"
+payload="$(printf '{"session_id":"togi-test-optin","transcript_path":"%s","reason":"prompt_input_exit"}' "$transcript")"
+TOGI_TEST_RAN="$tmpdir/ran" \
+PATH="$fake_bin:$PATH" \
+TOGI_HEADLESS=0 \
+TOGI_DEBUG=0 \
+CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
+CLAUDE_PROJECT_DIR="$tmpdir" \
+  env -u TOGI_ENABLED bash "$SCRIPT" <<< "$payload"
+sleep 1
+[ -e "$tmpdir/ran" ] && fail "sweep launched despite TOGI_ENABLED unset (opt-in default broken)"
+rm -rf "$tmpdir"
+if [ "$TEST_FAILURES" -eq 0 ]; then
+  echo "  PASS"
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+fi
+
 echo ""
 echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] || exit 1
