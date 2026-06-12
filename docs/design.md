@@ -72,7 +72,7 @@ Re-verify these when CLI behavior changes.
 
 ## Activation model (decided 2026-06-11)
 
-`TOGI_ENABLED` (default `1`) is the only switch: friction capture — including the billed end-of-session sweep — is active from the moment the plugin is installed. `/togi:setup` configures the project for the team and discloses the cost model; it does not gate capture. Opt-out is per-developer via `/togi:disable` (`TOGI_ENABLED=0` in `.claude/settings.local.json`).
+`TOGI_ENABLED` (default `1`) is the only switch: friction capture — including the end-of-session sweep (one API call, billed or drawn from plan limits) — is active from the moment the plugin is installed. `/togi:setup` configures the project for the team and discloses the cost model; it does not gate capture. Opt-out is per-developer via `/togi:disable` (`TOGI_ENABLED=0` in `.claude/settings.local.json`).
 
 Two gating mechanisms from the v0.4 plan are rejected, not forgotten — do not reintroduce them:
 

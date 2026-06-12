@@ -93,7 +93,7 @@ All configuration is via environment variables, set in `.claude/settings.json` (
 
 | Variable | Default | Description |
 |---|---|---|
-| `TOGI_ENABLED` | `1` | The only switch. While `1` (the default), friction capture — including the billed end-of-session sweep — is active. Set to `0` to disable (personal: use `.claude/settings.local.json`) |
+| `TOGI_ENABLED` | `1` | The only switch. While `1` (the default), friction capture — including the end-of-session sweep (one API call, billed or drawn from plan limits) — is active. Set to `0` to disable (personal: use `.claude/settings.local.json`) |
 | `TOGI_EVENT_THRESHOLD` | `5` | Friction events before the startup reminder appears |
 
 ## Cost
