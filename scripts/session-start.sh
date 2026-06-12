@@ -50,14 +50,16 @@ if ! command -v jq &>/dev/null; then
   exit 0
 fi
 
-FRICTION_DIR="$PROJECT_DIR/.claude/friction"
+# pending/ holds unprocessed session files; processed events move to the
+# sibling archive/ (read only by update-context-docs, never counted here).
+FRICTION_DIR="$PROJECT_DIR/.claude/friction/pending"
 
 # Count total events across all session JSON files.
 EVENT_COUNT=0
 while IFS= read -r _f; do
   _n=$(jq 'length' "$_f" 2>/dev/null || echo 0)
   EVENT_COUNT=$((EVENT_COUNT + _n))
-done < <(find "$FRICTION_DIR" -maxdepth 1 -name "*.json" 2>/dev/null)
+done < <(find "$FRICTION_DIR" -name "*.json" 2>/dev/null)
 log "session-start.sh" "friction event count: $EVENT_COUNT (threshold: ${TOGI_EVENT_THRESHOLD:-5})"
 
 # -lt: the reminder fires once the count REACHES the threshold (README: default 5).

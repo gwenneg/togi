@@ -22,7 +22,7 @@ If any step in any phase fails, stop and report the error — do not improvise w
 
 Output the following text verbatim before taking any other action:
 
-> **Togi** (研ぎ, to sharpen) turns AI friction — corrections, clarifications, mistakes, denied tool calls — into context-doc pull requests. For developers who opt in, each ended session is swept for friction events (written as JSON to `.claude/friction/`); once enough accumulate, `/togi:update-context-docs` turns them into a doc PR.
+> **Togi** (研ぎ, to sharpen) turns AI friction — corrections, clarifications, mistakes, denied tool calls — into context-doc pull requests. For developers who opt in, each ended session is swept for friction events (written as JSON to `.claude/friction/pending/`); once enough accumulate, `/togi:update-context-docs` turns them into a doc PR.
 >
 > **What this setup commits: nothing executable.** Three inert files — `.gitignore` entries, an adoption note at `.claude/togi.md`, and a pointer in `CONTRIBUTING.md` (or `README.md`). No repo-level marketplace registration or plugin enablement: teammates get togi only by installing it themselves, and capture stays **off for everyone** (`TOGI_ENABLED=0`) until each developer personally opts in — you'll be offered that at the end of this setup.
 >
@@ -119,5 +119,5 @@ The enable skill owns the opt-in commands and confirmation outputs — do not in
 
    **Is this safe to merge?** Yes — and you can verify it from the diff alone. The entire change is three inert text files: `.gitignore` entries, the adoption note `.claude/togi.md`, and a pointer in `CONTRIBUTING.md`. No settings, no hooks, no code: merging installs nothing and runs nothing on anyone's machine. If the diff shows anything beyond those three files, reject this PR.
 
-   **Trying it costs a minute and pennies.** Run the three commands in `.claude/togi.md`, work normally, and check `.claude/friction/` after a few sessions. Capture is opt-in per developer: a headless sweep — Claude resuming your ended session under your own credentials, nothing sent to any third party — reviews each session for friction events. Typical cost: $0.05–$0.20 per session, on your own plan limits or API billing. Haven't opted in? You'll see a one-time notice and nothing else will ever run. Leave any time with `/togi:disable`.
+   **Trying it costs a minute and pennies.** Run the three commands in `.claude/togi.md`, work normally, and check `.claude/friction/pending/` after a few sessions. Capture is opt-in per developer: a headless sweep — Claude resuming your ended session under your own credentials, nothing sent to any third party — reviews each session for friction events. Typical cost: $0.05–$0.20 per session, on your own plan limits or API billing. Haven't opted in? You'll see a one-time notice and nothing else will ever run. Leave any time with `/togi:disable`.
    ```

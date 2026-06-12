@@ -147,7 +147,7 @@ log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID -
   fi
 
   if [ "$_count" -gt 0 ]; then
-    _friction_dir="${CLAUDE_PROJECT_DIR:-.}/.claude/friction"
+    _friction_dir="${CLAUDE_PROJECT_DIR:-.}/.claude/friction/pending"
     mkdir -p "$_friction_dir"
     _file="${_friction_dir}/$(date +%Y%m%dT%H%M%S)-${SESSION_ID}.json"
     jq --arg session "$SESSION_ID" --arg date "$(date +%Y-%m-%d)" --arg cache "$CACHE_STATE" \

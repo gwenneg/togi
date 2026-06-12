@@ -9,7 +9,7 @@ Each of those stumbles is a **friction event**: a signal that the shared context
 ## How it works
 
 ```
-session ends → session-end.sh → forked headless sweep → friction files written to .claude/friction/
+session ends → session-end.sh → forked headless sweep → friction files written to .claude/friction/pending/
                                                                     ↓
                                next session start → session-start.sh → "12 friction events. Update the docs."
                                                                     ↓
@@ -90,7 +90,7 @@ The skill will:
 2. Flag recurrences — events whose root cause an earlier run already fixed (the fix didn't take) or excluded as noise (it was probably real)
 3. Let you exclude events that look like noise or redirect a proposed target
 4. Edit (or create) the target documentation files
-5. Open a pull request with a friction metrics summary, archiving the processed events locally (`.claude/friction/processed/`, git-ignored) so future runs can detect recurrences
+5. Open a pull request with a friction metrics summary, archiving the processed events locally (`.claude/friction/archive/`, git-ignored) so future runs can detect recurrences
 
 ## Configuration
 
@@ -115,7 +115,7 @@ At the end of each session, togi launches one headless `claude -p --resume --for
 
 The sweep resumes your session via `claude -p --resume --fork-session` on your own account. Your session transcript is not sent to any third party — the sweep runs as a headless Claude Code process under your own credentials, exactly as if you had resumed the session yourself. The original session transcript is left byte-identical after the fork.
 
-Friction files are written locally to `.claude/friction/` (git-ignored). Any developer can opt out with `/togi:disable`.
+Friction files are written locally under `.claude/friction/` (`pending/`, then `archive/` once processed — both git-ignored). Any developer can opt out with `/togi:disable`.
 
 **Known limitation:** sessions ended by crash or SIGKILL are not swept. Recurring doc gaps in those sessions will be caught on later sessions.
 
