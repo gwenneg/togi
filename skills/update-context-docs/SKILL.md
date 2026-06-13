@@ -29,21 +29,23 @@ find .claude/friction/pending -name '*.json'
 
 If none exist, report "No friction events to process." and stop.
 
-Read each file. Each event object has:
+Read each file. Each file is one session's sweep — an object with session-level fields:
+- `session`: session ID
+- `date`: ISO date
+- `cache`: `warm` or `cold` (cold-cache events are lower-confidence)
+- `sweep_cost_usd` (optional): measured cost of the sweep
+- `sweep_cache_read_tokens`, `sweep_cache_creation_tokens` (optional): measured prompt-cache usage. Cost-model telemetry only, **not** a confidence signal: a cache miss replays identical context at full price, so it does not lower capture quality (only the model downgrade recorded in `cache` does)
+
+and an `events` array whose objects carry the capture fields:
 - `type`: `correction`, `clarification`, `mistake`, or `denial`
 - `slug`: short kebab-case description
 - `captured_by`: model that captured the event
-- `cache`: `warm` or `cold` (cold-cache events are lower-confidence)
-- `date`: ISO date
-- `session`: session ID
 - `body`: one paragraph describing the friction and the rule that would prevent recurrence
 - `misleading_doc` (optional): a doc that was in the session's context and contained wrong or outdated guidance — high-confidence, the sweep watched that doc mislead
-- `sweep_cost_usd` (optional): measured cost of the sweep that captured this session's events — all events from one session share the value
-- `sweep_cache_read_tokens` (optional): measured prompt-cache reads for that sweep. Cost-model telemetry only, **not** a confidence signal: a cache miss replays identical context at full price, so it does not lower capture quality (only the model downgrade recorded in `cache` does)
 
 Events captured by older togi versions carry `doc_gap` instead of `misleading_doc`. Treat `doc_gap` as a low-confidence placement hint, never a binding target: it was guessed at sweep time, when the sweep had no tools to see the repo's doc tree, and may name a file that has never existed.
 
-Flatten all events across files into a single list, then group events that share a root cause — the same missing convention, the same misunderstood subsystem — even when they come from different sessions. One group gets one fix.
+Flatten all events across files into a single list, attaching each file's `session`, `date`, and `cache` to its events, then group events that share a root cause — the same missing convention, the same misunderstood subsystem — even when they come from different sessions. One group gets one fix.
 
 ## Phase 2: Choose target docs and check for recurrences
 
@@ -133,7 +135,7 @@ If a `promptfoo.yaml` or similar eval config exists, propose a new test case for
 
 Processed events are archived, not destroyed — the Phase 2 recurrence check depends on this history. Whether a fix actually took is the one measure of togi's value, and it can only be measured against what was fixed before.
 
-1. Write one archive file for the run — `.claude/friction/archive/YYYY-MM-DD.json` (append `-2`, `-3`, … if taken) — containing every event from the processed session files, including excluded ones, each annotated with:
+1. Write one archive file for the run — `.claude/friction/archive/YYYY-MM-DD.json` (append `-2`, `-3`, … if taken) — containing every event from the processed session files (with the `session`/`date`/`cache` attached at flatten time), including excluded ones, each annotated with:
    - `processed_date`: today's ISO date
    - `outcome`: `doc_updated` or `excluded`
    - `target_docs`: the doc(s) edited for its group (`doc_updated` only)
@@ -188,6 +190,6 @@ Commit with message `docs: improve context docs from friction capture`, push, an
 **Sweep cost:** $X.XX across N session(s)
 ```
 
-  Sum `sweep_cost_usd` once per session — events from the same session share one sweep — and count only sessions carrying the field; omit the line entirely if none do.
+  Sum the session files' `sweep_cost_usd` (one value per file), counting only files carrying the field; omit the line entirely if none do.
 
 - The standard `Generated with Claude Code` footer

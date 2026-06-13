@@ -54,10 +54,12 @@ fi
 # sibling archive/ (read only by update-context-docs, never counted here).
 FRICTION_DIR="$PROJECT_DIR/.claude/friction/pending"
 
-# Count total events across all session JSON files.
+# Count total events across all session JSON files. Each file is an object
+# with session-level metadata and an `events` array (`.events | length` is 0
+# for null/missing, so a malformed file counts as nothing, not an error).
 EVENT_COUNT=0
 while IFS= read -r _f; do
-  _n=$(jq 'length' "$_f" 2>/dev/null || echo 0)
+  _n=$(jq '.events | length' "$_f" 2>/dev/null || echo 0)
   EVENT_COUNT=$((EVENT_COUNT + _n))
 done < <(find "$FRICTION_DIR" -name "*.json" 2>/dev/null)
 log "session-start.sh" "friction event count: $EVENT_COUNT (threshold: ${TOGI_EVENT_THRESHOLD:-5})"

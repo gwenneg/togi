@@ -36,7 +36,7 @@ run_test() {
 printf '%s\n' "$@" > "$TOGI_TEST_ARGV"
 cat > "$TOGI_TEST_STDIN"
 cat << 'ENVELOPE'
-{"result":"[{\"type\":\"clarification\",\"slug\":\"test-friction-event\",\"misleading_doc\":\"CLAUDE.md\",\"captured_by\":\"test-model\",\"body\":\"Test body.\"},{\"type\":\"bogus\",\"slug\":\"unknown-type\",\"captured_by\":\"test-model\",\"body\":\"x\"},{\"type\":\"correction\",\"slug\":\"missing-body\",\"captured_by\":\"test-model\"}]","total_cost_usd":0.0123,"usage":{"cache_read_input_tokens":4567},"is_error":false,"duration_ms":1500,"session_id":"fork-session-id"}
+{"result":"[{\"type\":\"clarification\",\"slug\":\"test-friction-event\",\"misleading_doc\":\"CLAUDE.md\",\"captured_by\":\"test-model\",\"body\":\"Test body.\"},{\"type\":\"bogus\",\"slug\":\"unknown-type\",\"captured_by\":\"test-model\",\"body\":\"x\"},{\"type\":\"correction\",\"slug\":\"missing-body\",\"captured_by\":\"test-model\"}]","total_cost_usd":0.0123,"usage":{"cache_read_input_tokens":4567,"cache_creation_input_tokens":890},"is_error":false,"duration_ms":1500,"session_id":"fork-session-id"}
 ENVELOPE
 FAKE_EOF
   chmod +x "$fake_bin/claude"
@@ -121,15 +121,18 @@ FAKE_EOF
   friction_file="$(find "$tmpdir/.claude/friction/pending" -name "*.json" 2>/dev/null | head -1)"
   [ -n "$friction_file" ] || fail "friction JSON file not created from sweep output"
   if [ -n "$friction_file" ]; then
-    jq -e 'length == 1'                        "$friction_file" >/dev/null 2>&1 || fail "schema gate did not drop the malformed events"
-    jq -e '.[0].type == "clarification"'       "$friction_file" >/dev/null 2>&1 || fail "wrong type in friction JSON"
-    jq -e --arg s "$session_id" '.[0].session == $s' "$friction_file" >/dev/null 2>&1 || fail "session_id not in friction JSON"
-    jq -e '.[0].misleading_doc == "CLAUDE.md"' "$friction_file" >/dev/null 2>&1 || fail "misleading_doc not passed through to friction JSON"
-    jq -e '.[0].body == "Test body."'          "$friction_file" >/dev/null 2>&1 || fail "body not in friction JSON"
-    jq -e '.[0].cache'                         "$friction_file" >/dev/null 2>&1 || fail "cache not added to friction JSON"
-    jq -e '.[0].date'                          "$friction_file" >/dev/null 2>&1 || fail "date not added to friction JSON"
-    jq -e '.[0].sweep_cost_usd == 0.0123'      "$friction_file" >/dev/null 2>&1 || fail "sweep_cost_usd not stamped from envelope"
-    jq -e '.[0].sweep_cache_read_tokens == 4567' "$friction_file" >/dev/null 2>&1 || fail "sweep_cache_read_tokens not stamped from envelope"
+    # Session-level header: metadata and sweep telemetry live once per file.
+    jq -e --arg s "$session_id" '.session == $s'      "$friction_file" >/dev/null 2>&1 || fail "session_id not in friction header"
+    jq -e '.cache'                                    "$friction_file" >/dev/null 2>&1 || fail "cache not in friction header"
+    jq -e '.date'                                     "$friction_file" >/dev/null 2>&1 || fail "date not in friction header"
+    jq -e '.sweep_cost_usd == 0.0123'                 "$friction_file" >/dev/null 2>&1 || fail "sweep_cost_usd not stamped from envelope"
+    jq -e '.sweep_cache_read_tokens == 4567'          "$friction_file" >/dev/null 2>&1 || fail "sweep_cache_read_tokens not stamped from envelope"
+    jq -e '.sweep_cache_creation_tokens == 890'       "$friction_file" >/dev/null 2>&1 || fail "sweep_cache_creation_tokens not stamped from envelope"
+    # Events array: pure capture fields, schema-gated.
+    jq -e '.events | length == 1'                     "$friction_file" >/dev/null 2>&1 || fail "schema gate did not drop the malformed events"
+    jq -e '.events[0].type == "clarification"'        "$friction_file" >/dev/null 2>&1 || fail "wrong type in friction JSON"
+    jq -e '.events[0].misleading_doc == "CLAUDE.md"'  "$friction_file" >/dev/null 2>&1 || fail "misleading_doc not passed through to friction JSON"
+    jq -e '.events[0].body == "Test body."'           "$friction_file" >/dev/null 2>&1 || fail "body not in friction JSON"
   fi
 
   rm -rf "$tmpdir"
@@ -165,6 +168,44 @@ CLAUDE_PROJECT_DIR="$tmpdir" \
   env -u TOGI_ENABLED bash "$SCRIPT" <<< "$payload"
 sleep 1
 [ -e "$tmpdir/ran" ] && fail "sweep launched despite TOGI_ENABLED unset (opt-in default broken)"
+rm -rf "$tmpdir"
+if [ "$TEST_FAILURES" -eq 0 ]; then
+  echo "  PASS"
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+fi
+
+# Exit blocking: Claude Code reads the hook's stdout until EOF before
+# releasing the session exit. The backgrounded sweep subshell must not hold
+# the hook's stdout open — `| cat` below emulates Claude Code's read-to-EOF;
+# with a fake claude that sleeps 5 s, a held pipe makes EOF (and the user's
+# quit) wait those 5 s.
+echo "--- hook exit does not wait for the sweep (stdout EOF) ---"
+TEST_FAILURES=0
+tmpdir="$(mktemp -d)"
+fake_bin="$tmpdir/bin"; mkdir -p "$fake_bin"
+cat > "$fake_bin/claude" << 'FAKE_EOF'
+#!/usr/bin/env bash
+sleep 5
+printf '{"result":"[]","total_cost_usd":0.001,"usage":{"cache_read_input_tokens":1},"is_error":false}\n'
+FAKE_EOF
+chmod +x "$fake_bin/claude"
+transcript="$tmpdir/transcript.jsonl"
+printf '{"type":"user","timestamp":"%s","message":{"content":"t"}}\n' "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" > "$transcript"
+payload="$(printf '{"session_id":"togi-test-block","transcript_path":"%s","reason":"prompt_input_exit"}' "$transcript")"
+_start=$(date +%s)
+PATH="$fake_bin:$PATH" \
+TOGI_ENABLED=1 \
+TOGI_HEADLESS=0 \
+TOGI_DEBUG=0 \
+CLAUDE_PLUGIN_ROOT="$REPO_ROOT" \
+CLAUDE_PROJECT_DIR="$tmpdir" \
+  bash "$SCRIPT" <<< "$payload" | cat >/dev/null
+_elapsed=$(( $(date +%s) - _start ))
+[ "$_elapsed" -lt 3 ] || fail "hook stdout EOF took ${_elapsed}s — the sweep subshell is holding the hook's pipes and blocking session exit"
+# Give the detached sweep time to finish before removing its working dir.
+sleep 6
 rm -rf "$tmpdir"
 if [ "$TEST_FAILURES" -eq 0 ]; then
   echo "  PASS"
