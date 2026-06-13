@@ -140,9 +140,10 @@ log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID -
   _is_error=$(jq -r '.is_error // false' "$_out" 2>/dev/null || echo "")
   _cost=$(jq -r '.total_cost_usd // empty' "$_out" 2>/dev/null || echo "")
   _cache_read=$(jq -r '.usage.cache_read_input_tokens // empty' "$_out" 2>/dev/null || echo "")
+  _cache_creation=$(jq -r '.usage.cache_creation_input_tokens // empty' "$_out" 2>/dev/null || echo "")
   _duration=$(jq -r '.duration_ms // empty' "$_out" 2>/dev/null || echo "")
   _fork_id=$(jq -r '.session_id // empty' "$_out" 2>/dev/null || echo "")
-  log "session-end.sh" "sweep telemetry: cost_usd=${_cost:-n/a} cache_read_tokens=${_cache_read:-n/a} (predicted: $CACHE_STATE) duration_ms=${_duration:-n/a} fork_session=${_fork_id:-n/a} is_error=${_is_error:-n/a}"
+  log "session-end.sh" "sweep telemetry: cost_usd=${_cost:-n/a} cache_read_tokens=${_cache_read:-n/a} cache_creation_tokens=${_cache_creation:-n/a} (predicted: $CACHE_STATE) duration_ms=${_duration:-n/a} fork_session=${_fork_id:-n/a} is_error=${_is_error:-n/a}"
 
   # The model's text lives in the envelope's .result as a string; extract and
   # parse the events array from it. Every failure degrades to zero events
@@ -178,21 +179,27 @@ log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID -
     _friction_dir="${CLAUDE_PROJECT_DIR:-.}/.claude/friction/pending"
     mkdir -p "$_friction_dir"
     _file="${_friction_dir}/$(date +%Y%m%dT%H%M%S)-${SESSION_ID}.json"
-    # sweep_cost_usd / sweep_cache_read_tokens: measured telemetry, stamped
-    # only when the envelope provided it. Per-event rather than per-file
-    # (every event of a session shares its sweep's values) because the file
-    # is a flat array with no header object, like the other stamps.
+    # The file is one session's sweep: session-level metadata and measured
+    # telemetry live once in the header (telemetry only when the envelope
+    # provided it); the events array carries pure capture fields.
     printf '%s' "$_events" | jq --arg session "$SESSION_ID" --arg date "$(date +%Y-%m-%d)" --arg cache "$CACHE_STATE" \
-      --arg cost "$_cost" --arg cache_read "$_cache_read" \
-      "$_valid"' | map(. + {session: $session, date: $date, cache: $cache}
-        + (if $cost       != "" then {sweep_cost_usd:          ($cost       | tonumber)} else {} end)
-        + (if $cache_read != "" then {sweep_cache_read_tokens: ($cache_read | tonumber)} else {} end))' > "$_file"
+      --arg cost "$_cost" --arg cache_read "$_cache_read" --arg cache_creation "$_cache_creation" \
+      "$_valid"' | {session: $session, date: $date, cache: $cache}
+        + (if $cost           != "" then {sweep_cost_usd:              ($cost           | tonumber)} else {} end)
+        + (if $cache_read     != "" then {sweep_cache_read_tokens:     ($cache_read     | tonumber)} else {} end)
+        + (if $cache_creation != "" then {sweep_cache_creation_tokens: ($cache_creation | tonumber)} else {} end)
+        + {events: .}' > "$_file"
     log "session-end.sh" "wrote $_file ($_count event(s))"
   fi
 
   rm -f "$_out" "$_err"
-) &
-# Disown so the hook exits immediately. Without this, Claude Code waitpids on all
-# child processes — including background jobs — before releasing the session exit,
-# meaning the user would wait for the entire sweep to complete before quitting.
+) </dev/null >/dev/null 2>&1 &
+# Both halves of the detach are load-bearing (the stdio redirect was found
+# missing 2026-06-13: session exit blocked for the sweep's full duration):
+# - The stdio redirect above: Claude Code reads hook stdout until EOF, and the
+#   backgrounded subshell inherits the hook's pipes — nohup only redirects
+#   claude's own fds. An inherited write end delays EOF until the sweep ends.
+#   The subshell's real output goes through log() to the log file.
+# - disown: Claude Code waitpids child processes before releasing the session
+#   exit; the job must leave the shell's job table.
 disown $!

@@ -111,7 +111,7 @@ At the end of each session, togi launches one headless `claude -p --resume --for
 
 **Subscription users:** the sweep draws from your plan's usage limits rather than billing dollars.
 
-**Measured, not just estimated:** each sweep records its actual cost and cache usage (`sweep_cost_usd`, `sweep_cache_read_tokens`) into the friction events it writes, and `/togi:update-context-docs` reports the summed sweep cost in its PR metrics — so the figures above are verifiable against your own data.
+**Measured, not just estimated:** each sweep records its actual cost and cache usage (`sweep_cost_usd`, `sweep_cache_read_tokens`, `sweep_cache_creation_tokens`) in the header of the friction file it writes, and `/togi:update-context-docs` reports the summed sweep cost in its PR metrics — so the figures above are verifiable against your own data.
 
 ## Privacy
 
@@ -173,7 +173,7 @@ Releases are deliberate — pushing to `main` does **not** ship code to users. `
 3. Set `sha` in `.claude-plugin/marketplace.json` to the full 40-char SHA of the release commit, and commit it to `main`. **This single bump is the release**: changing the pinned SHA changes the plugin's identity (so Claude Code detects an update) *and* fixes the exact, immutable code users run (tamper-evidence).
 4. Publish a [GitHub Release](https://github.com/gwenneg/togi/releases) with notes (`gh release create vX.Y.Z --generate-notes`) so users have a discovery signal and a changelog to evaluate the update against.
 
-> **Verify against your Claude Code version before relying on this.** With `version` omitted, the plugin identity falls back to the source commit SHA — but whether changing a *pinned* SHA invalidates the cache and delivers new code is **not explicitly documented** (the docs describe SHA-as-version for branch-tracked sources). Confirm a SHA bump actually delivers updated code to an installed client on the CLI version you support; if it does not, restore an explicit `version` in `plugin.json` and bump it each release alongside the SHA.
+> **Verified 2026-06-13:** a pinned-SHA bump delivers updates. With `version` omitted, the plugin identity falls back to the source commit SHA, and bumping the pin then running `/plugin marketplace update` + `/plugin update togi@togi` moved an installed client to the new commit and ran the new code. Re-verify if a Claude Code update changes plugin resolution.
 
 ### Staying up to date
 
