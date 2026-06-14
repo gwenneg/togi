@@ -162,7 +162,7 @@ log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID -
   # assets/prompts/capture-friction.md), so its absence is not checked.
   _valid='if type == "array" then map(select(
       (type == "object")
-      and ([.type, .slug, .captured_by, .body] | all(type == "string" and length > 0))
+      and ([.type, .captured_by, .body] | all(type == "string" and length > 0))
       and (.type | IN("correction", "clarification", "mistake", "denial"))
     )) else [] end'
   _total=$(printf '%s' "$_events" | jq 'if type == "array" then length else 0 end' 2>/dev/null || echo 0)
@@ -179,15 +179,14 @@ log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID -
     _friction_dir="${CLAUDE_PROJECT_DIR:-.}/.claude/friction/pending"
     mkdir -p "$_friction_dir"
     _file="${_friction_dir}/$(date +%Y%m%dT%H%M%S)-${SESSION_ID}.json"
-    # The file is one session's sweep: session-level metadata and measured
-    # telemetry live once in the header (telemetry only when the envelope
-    # provided it); the events array carries pure capture fields.
-    printf '%s' "$_events" | jq --arg session "$SESSION_ID" --arg date "$(date +%Y-%m-%d)" --arg cache "$CACHE_STATE" \
-      --arg cost "$_cost" --arg cache_read "$_cache_read" --arg cache_creation "$_cache_creation" \
-      "$_valid"' | {session: $session, date: $date, cache: $cache}
-        + (if $cost           != "" then {sweep_cost_usd:              ($cost           | tonumber)} else {} end)
-        + (if $cache_read     != "" then {sweep_cache_read_tokens:     ($cache_read     | tonumber)} else {} end)
-        + (if $cache_creation != "" then {sweep_cache_creation_tokens: ($cache_creation | tonumber)} else {} end)
+    # The file is one session's sweep: the date and the measured sweep cost
+    # live once in the header (cost only when the envelope provided it); the
+    # events array carries pure capture fields. Richer telemetry (cache
+    # read/creation tokens, predicted warm/cold) stays in the debug log — the
+    # skill never reads it, so it is not stamped into the file.
+    printf '%s' "$_events" | jq --arg date "$(date +%Y-%m-%d)" --arg cost "$_cost" \
+      "$_valid"' | {date: $date}
+        + (if $cost != "" then {sweep_cost_usd: ($cost | tonumber)} else {} end)
         + {events: .}' > "$_file"
     log "session-end.sh" "wrote $_file ($_count event(s))"
   fi

@@ -62,10 +62,10 @@ while IFS= read -r _f; do
   _n=$(jq '.events | length' "$_f" 2>/dev/null || echo 0)
   EVENT_COUNT=$((EVENT_COUNT + _n))
 done < <(find "$FRICTION_DIR" -name "*.json" 2>/dev/null)
-log "session-start.sh" "friction event count: $EVENT_COUNT (threshold: ${TOGI_EVENT_THRESHOLD:-5})"
+log "session-start.sh" "friction event count: $EVENT_COUNT (threshold: ${TOGI_EVENT_THRESHOLD:-10})"
 
-# -lt: the reminder fires once the count REACHES the threshold (README: default 5).
-if [ "$EVENT_COUNT" -lt "${TOGI_EVENT_THRESHOLD:-5}" ]; then
+# -lt: the reminder fires once the count REACHES the threshold (README: default 10).
+if [ "$EVENT_COUNT" -lt "${TOGI_EVENT_THRESHOLD:-10}" ]; then
   log "session-start.sh" "threshold not reached — no reminder"
   exit 0
 fi
