@@ -29,14 +29,14 @@ run_test() {
   # Fake claude: record argv and stdin, then emit a result envelope (as
   # --output-format json does) whose .result string holds one valid friction
   # event plus two malformed ones (unknown type; missing body) that the schema
-  # gate in session-end.sh must drop. The envelope carries telemetry that must
-  # be stamped into the friction file.
+  # gate in session-end.sh must drop. total_cost_usd must reach the friction
+  # file header; the cache-token telemetry must NOT (debug-log only).
   cat > "$fake_bin/claude" << 'FAKE_EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$@" > "$TOGI_TEST_ARGV"
 cat > "$TOGI_TEST_STDIN"
 cat << 'ENVELOPE'
-{"result":"[{\"type\":\"clarification\",\"slug\":\"test-friction-event\",\"misleading_doc\":\"CLAUDE.md\",\"captured_by\":\"test-model\",\"body\":\"Test body.\"},{\"type\":\"bogus\",\"slug\":\"unknown-type\",\"captured_by\":\"test-model\",\"body\":\"x\"},{\"type\":\"correction\",\"slug\":\"missing-body\",\"captured_by\":\"test-model\"}]","total_cost_usd":0.0123,"usage":{"cache_read_input_tokens":4567,"cache_creation_input_tokens":890},"is_error":false,"duration_ms":1500,"session_id":"fork-session-id"}
+{"result":"[{\"type\":\"clarification\",\"misleading_doc\":\"CLAUDE.md\",\"captured_by\":\"test-model\",\"body\":\"Test body.\"},{\"type\":\"bogus\",\"captured_by\":\"test-model\",\"body\":\"x\"},{\"type\":\"correction\",\"captured_by\":\"test-model\"}]","total_cost_usd":0.0123,"usage":{"cache_read_input_tokens":4567,"cache_creation_input_tokens":890},"is_error":false,"duration_ms":1500,"session_id":"fork-session-id"}
 ENVELOPE
 FAKE_EOF
   chmod +x "$fake_bin/claude"
@@ -121,18 +121,20 @@ FAKE_EOF
   friction_file="$(find "$tmpdir/.claude/friction/pending" -name "*.json" 2>/dev/null | head -1)"
   [ -n "$friction_file" ] || fail "friction JSON file not created from sweep output"
   if [ -n "$friction_file" ]; then
-    # Session-level header: metadata and sweep telemetry live once per file.
-    jq -e --arg s "$session_id" '.session == $s'      "$friction_file" >/dev/null 2>&1 || fail "session_id not in friction header"
-    jq -e '.cache'                                    "$friction_file" >/dev/null 2>&1 || fail "cache not in friction header"
+    # Header: date + measured sweep cost only.
     jq -e '.date'                                     "$friction_file" >/dev/null 2>&1 || fail "date not in friction header"
     jq -e '.sweep_cost_usd == 0.0123'                 "$friction_file" >/dev/null 2>&1 || fail "sweep_cost_usd not stamped from envelope"
-    jq -e '.sweep_cache_read_tokens == 4567'          "$friction_file" >/dev/null 2>&1 || fail "sweep_cache_read_tokens not stamped from envelope"
-    jq -e '.sweep_cache_creation_tokens == 890'       "$friction_file" >/dev/null 2>&1 || fail "sweep_cache_creation_tokens not stamped from envelope"
+    # The removed fields must NOT be present.
+    jq -e 'has("session")'                            "$friction_file" >/dev/null 2>&1 && fail "session should not be in friction header" || true
+    jq -e 'has("cache")'                              "$friction_file" >/dev/null 2>&1 && fail "cache should not be in friction header" || true
+    jq -e 'has("sweep_cache_read_tokens")'            "$friction_file" >/dev/null 2>&1 && fail "cache-token telemetry should not be stamped into the file" || true
+    jq -e 'has("sweep_cache_creation_tokens")'        "$friction_file" >/dev/null 2>&1 && fail "cache-token telemetry should not be stamped into the file" || true
     # Events array: pure capture fields, schema-gated.
     jq -e '.events | length == 1'                     "$friction_file" >/dev/null 2>&1 || fail "schema gate did not drop the malformed events"
     jq -e '.events[0].type == "clarification"'        "$friction_file" >/dev/null 2>&1 || fail "wrong type in friction JSON"
     jq -e '.events[0].misleading_doc == "CLAUDE.md"'  "$friction_file" >/dev/null 2>&1 || fail "misleading_doc not passed through to friction JSON"
     jq -e '.events[0].body == "Test body."'           "$friction_file" >/dev/null 2>&1 || fail "body not in friction JSON"
+    jq -e '.events[0] | has("slug") | not'            "$friction_file" >/dev/null 2>&1 || fail "slug should no longer be a capture field"
   fi
 
   rm -rf "$tmpdir"

@@ -99,7 +99,7 @@ All configuration is via environment variables, set in `.claude/settings.json` (
 | Variable | Default | Description |
 |---|---|---|
 | `TOGI_ENABLED` | `0` | The only switch, **off by default**. Set to `1` to activate friction capture — including the end-of-session sweep (one API call, billed or drawn from plan limits) — via `/togi:setup` or `/togi:enable` (repo scope: `.claude/settings.local.json`; global scope: `~/.claude/settings.json`). A repo-local `0` overrides a global `1` |
-| `TOGI_EVENT_THRESHOLD` | `5` | Friction events before the startup reminder appears |
+| `TOGI_EVENT_THRESHOLD` | `10` | Friction events before the startup reminder appears |
 
 ## Cost
 
@@ -111,7 +111,7 @@ At the end of each session, togi launches one headless `claude -p --resume --for
 
 **Subscription users:** the sweep draws from your plan's usage limits rather than billing dollars.
 
-**Measured, not just estimated:** each sweep records its actual cost and cache usage (`sweep_cost_usd`, `sweep_cache_read_tokens`, `sweep_cache_creation_tokens`) in the header of the friction file it writes, and `/togi:update-context-docs` reports the summed sweep cost in its PR metrics — so the figures above are verifiable against your own data.
+**Measured, not just estimated:** each sweep records its actual cost (`sweep_cost_usd`) in the friction file it writes, and `/togi:update-context-docs` reports the summed sweep cost in its PR metrics — so the figures above are verifiable against your own data. (Cache-usage telemetry for the cost-model investigation goes to the debug log under `TOGI_DEBUG=1`, not the friction file.)
 
 ## Privacy
 
