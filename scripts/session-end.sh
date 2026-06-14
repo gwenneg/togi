@@ -179,15 +179,15 @@ log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID -
     _friction_dir="${CLAUDE_PROJECT_DIR:-.}/.claude/friction/pending"
     mkdir -p "$_friction_dir"
     _file="${_friction_dir}/$(date +%Y%m%dT%H%M%S)-${SESSION_ID}.json"
-    # The file is one session's sweep: the date and the measured sweep cost
-    # live once in the header (cost only when the envelope provided it); the
-    # events array carries pure capture fields. Richer telemetry (cache
-    # read/creation tokens, predicted warm/cold) stays in the debug log — the
-    # skill never reads it, so it is not stamped into the file.
+    # The file is one session's sweep. Each field lives where the skill
+    # consumes it: the sweep date on every event (recurrence/display/PR all
+    # operate per event, and events get regrouped across sweeps), the per-sweep
+    # cost in the header (summed per sweep, not per event; only when the
+    # envelope provided it). Richer telemetry (cache tokens, predicted
+    # warm/cold) stays in the debug log — the skill never reads it.
     printf '%s' "$_events" | jq --arg date "$(date +%Y-%m-%d)" --arg cost "$_cost" \
-      "$_valid"' | {date: $date}
-        + (if $cost != "" then {sweep_cost_usd: ($cost | tonumber)} else {} end)
-        + {events: .}' > "$_file"
+      "$_valid"' | (if $cost != "" then {sweep_cost_usd: ($cost | tonumber)} else {} end)
+        + {events: map(. + {date: $date})}' > "$_file"
     log "session-end.sh" "wrote $_file ($_count event(s))"
   fi
 

@@ -121,16 +121,17 @@ FAKE_EOF
   friction_file="$(find "$tmpdir/.claude/friction/pending" -name "*.json" 2>/dev/null | head -1)"
   [ -n "$friction_file" ] || fail "friction JSON file not created from sweep output"
   if [ -n "$friction_file" ]; then
-    # Header: date + measured sweep cost only.
-    jq -e '.date'                                     "$friction_file" >/dev/null 2>&1 || fail "date not in friction header"
+    # Header: per-sweep cost only — date lives on each event, not the header.
     jq -e '.sweep_cost_usd == 0.0123'                 "$friction_file" >/dev/null 2>&1 || fail "sweep_cost_usd not stamped from envelope"
+    jq -e 'has("date")'                               "$friction_file" >/dev/null 2>&1 && fail "date should be per-event, not in the file header" || true
     # The removed fields must NOT be present.
     jq -e 'has("session")'                            "$friction_file" >/dev/null 2>&1 && fail "session should not be in friction header" || true
     jq -e 'has("cache")'                              "$friction_file" >/dev/null 2>&1 && fail "cache should not be in friction header" || true
     jq -e 'has("sweep_cache_read_tokens")'            "$friction_file" >/dev/null 2>&1 && fail "cache-token telemetry should not be stamped into the file" || true
     jq -e 'has("sweep_cache_creation_tokens")'        "$friction_file" >/dev/null 2>&1 && fail "cache-token telemetry should not be stamped into the file" || true
-    # Events array: pure capture fields, schema-gated.
+    # Events array: pure capture fields + per-event date, schema-gated.
     jq -e '.events | length == 1'                     "$friction_file" >/dev/null 2>&1 || fail "schema gate did not drop the malformed events"
+    jq -e '.events[0].date'                           "$friction_file" >/dev/null 2>&1 || fail "date not attached to each event"
     jq -e '.events[0].type == "clarification"'        "$friction_file" >/dev/null 2>&1 || fail "wrong type in friction JSON"
     jq -e '.events[0].misleading_doc == "CLAUDE.md"'  "$friction_file" >/dev/null 2>&1 || fail "misleading_doc not passed through to friction JSON"
     jq -e '.events[0].body == "Test body."'           "$friction_file" >/dev/null 2>&1 || fail "body not in friction JSON"
