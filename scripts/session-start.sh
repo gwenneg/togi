@@ -20,17 +20,17 @@ fi
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
 
 # Not opted in: show a one-time notice, but only in repos carrying the committed
-# adoption note (.claude/togi.md) — a user-scope install fires this hook everywhere, so
+# adoption note (.togi/togi.md) — a user-scope install fires this hook everywhere, so
 # repos without the note must stay silent.
 # See docs/internals.md#5-activation--opt-in for more details.
 if [ "${TOGI_ENABLED:-0}" != "1" ]; then
 
-  if [ ! -f "$PROJECT_DIR/.claude/togi.md" ]; then
+  if [ ! -f "$PROJECT_DIR/.togi/togi.md" ]; then
     log "session-start.sh" "exit: not enabled, repo has no togi adoption note — staying silent"
     exit 0
   fi
 
-  MARKER="$PROJECT_DIR/.claude/togi-notice-shown"
+  MARKER="$PROJECT_DIR/.togi/togi-notice-shown"
   if [ -e "$MARKER" ]; then
     log "session-start.sh" "exit: not enabled, opt-in notice already shown"
     exit 0
@@ -52,7 +52,7 @@ fi
 # Count pending events only; processed events move to the sibling archive/, read by
 # update-context-docs and never counted here.
 # See docs/internals.md#7-processing-friction-into-docs for more details.
-FRICTION_DIR="$PROJECT_DIR/.claude/friction/pending"
+FRICTION_DIR="$PROJECT_DIR/.togi/friction/pending"
 
 # Sum events across all session files; a malformed file counts as 0, not an error.
 EVENT_COUNT=0

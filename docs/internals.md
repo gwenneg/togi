@@ -23,14 +23,14 @@ Appendix — [Claude Code & API documentation](#claude-code--api-documentation)
 
 Togi has three moving parts — two session-lifecycle hooks and one skill (see the [hooks reference](https://code.claude.com/docs/en/hooks) and [hooks guide](https://code.claude.com/docs/en/hooks-guide) for the hook mechanism):
 
-- **`SessionEnd` hook** (`scripts/session-end.sh`) — when an enabled session ends, it forks a detached headless `claude -p --resume --fork-session` process ([headless mode](https://code.claude.com/docs/en/headless)) that sweeps the just-ended session for friction events and writes them as a JSON file under `.claude/friction/pending/`.
+- **`SessionEnd` hook** (`scripts/session-end.sh`) — when an enabled session ends, it forks a detached headless `claude -p --resume --fork-session` process ([headless mode](https://code.claude.com/docs/en/headless)) that sweeps the just-ended session for friction events and writes them as a JSON file under `.togi/friction/pending/`.
 - **`SessionStart` hook** (`scripts/session-start.sh`) — counts pending friction events; once the count reaches `TOGI_EVENT_THRESHOLD`, it injects a reminder to process them (`SessionStart` stdout is added to context per the [hooks reference](https://code.claude.com/docs/en/hooks)). In repos that adopted togi but where the developer hasn't opted in, it shows a single opt-in notice instead.
 - **`/togi:update-context-docs` [skill](https://code.claude.com/docs/en/skills)** — groups accumulated events by root cause, decides which docs to fix, edits them, opens a PR, and archives the processed events.
 
 The full loop:
 
 ```
-session ends → session-end.sh → forked headless sweep → friction files written to .claude/friction/pending/
+session ends → session-end.sh → forked headless sweep → friction files written to .togi/friction/pending/
                                                                     ↓
                                next session start → session-start.sh → "12 friction events. Update the docs."
                                                                     ↓
@@ -129,7 +129,7 @@ Consequence: a developer with `ANTHROPIC_API_KEY` exported (common in dev shells
 
 Prices used (per MTok, input / ~cache-read; current rates on the [pricing page](https://platform.claude.com/docs/en/about-claude/pricing) and [models overview](https://platform.claude.com/docs/en/about-claude/models/overview)): Opus 4.8 $5.00 / ~$0.50 · Sonnet 4.6 $3.00 / ~$0.30 · Haiku 4.5 $1.00 / ~$0.10 · Fable 5 $10.00 / ~$1.00.
 
-Caveats: the range is **Opus-referenced** — sessions on cheaper models sweep cheaper, and a long **Fable 5** session can exceed it (~$1/MTok cache-read → ~$0.25 at 250K tokens). When prices change, re-derive as `session tokens × cache-read price` and update the figure everywhere it appears (README Cost, setup Phase 1, `.claude/togi.md` template, plugin descriptions, the opt-in notice in `session-start.sh`).
+Caveats: the range is **Opus-referenced** — sessions on cheaper models sweep cheaper, and a long **Fable 5** session can exceed it (~$1/MTok cache-read → ~$0.25 at 250K tokens). When prices change, re-derive as `session tokens × cache-read price` and update the figure everywhere it appears (README Cost, setup Phase 1, `.togi/togi.md` template, plugin descriptions, the opt-in notice in `session-start.sh`).
 
 ### The cache rule
 
@@ -157,7 +157,7 @@ Live-verified on this account (haiku, fresh `-p` plus a `--resume --fork-session
 
 The sweep resumes your session via `claude -p --resume --fork-session` on your own account ([CLI reference](https://code.claude.com/docs/en/cli-reference), [managing sessions](https://code.claude.com/docs/en/sessions)). Your session transcript is not sent to any third party — the sweep runs as a headless Claude Code process under your own credentials, exactly as if you had resumed the session yourself. `--fork-session` is mandatory: per the [sessions docs](https://code.claude.com/docs/en/sessions) forking "copies the history into a new session ID, leaving the original unchanged" (verified — see [§10](#10-verified-empirical-facts)).
 
-Friction files are written locally under `.claude/friction/` (`pending/`, then `archive/` once processed — both git-ignored). Any developer can opt out with `/togi:disable`.
+Friction files are written locally under `.togi/friction/` (`pending/`, then `archive/` once processed — both git-ignored). Any developer can opt out with `/togi:disable`.
 
 **Known limitation:** sessions ended by crash or SIGKILL are not swept. Recurring doc gaps in those sessions will be caught on later sessions.
 
@@ -188,7 +188,7 @@ Consequences for togi:
 
 - The settings writes in `/togi:enable`, `/togi:disable`, and `/togi:setup` **always prompt**. Acceptable — the write toggles a consent flag, and the prompt puts that approval in front of exactly the right person at the right moment.
 - `enable` and `disable` carry **no `allowed-tools`**: an allowlist cannot deliver promptless operation for skills whose whole job is a protected write, so it buys nothing.
-- `setup` keeps `allowed-tools` only for steps pre-approval can actually serve: `Write`/`Read`/`Edit` for the non-protected files it commits (`.gitignore` and the CONTRIBUTING/README pointer — the adoption note `.claude/togi.md` is protected and prompts regardless), and the git/gh flow. Everything else was removed: `Bash(mkdir*)`, `Bash(touch .claude/*)`, `Bash(mv .claude/*)`, later `Bash(jq*)` and `Bash(grep*)`. A dead grant is worse than a prompt.
+- `setup` keeps `allowed-tools` only for steps pre-approval can actually serve: `Write`/`Read`/`Edit` for the files it commits (`.gitignore`, the CONTRIBUTING/README pointer, and the adoption note `.togi/togi.md` — all outside Claude Code's protected `.claude/`, so the grant actually pre-approves them), and the git/gh flow. (Moving the adoption note to `.togi/` is what made it pre-approvable; under `.claude/` it was protected and prompted regardless.) Everything else was removed: `Bash(mkdir*)`, `Bash(touch .claude/*)`, `Bash(mv .claude/*)`, later `Bash(jq*)` and `Bash(grep*)`. A dead grant is worse than a prompt.
 - Whether the check inspects Bash redirect targets (`> .claude/foo.tmp`) or `mv` side effects is undocumented. Togi deliberately does **not** rely on that either way — routing writes through a vehicle the checker might miss would be evading a safety feature via an undocumented gap.
 - `setup` Phase 3 delegates the opt-in to the `enable` skill via the `Skill` tool (`Skill(togi:enable)` in allowed-tools; `enable` accepts `repo`/`all` to skip its scope question), so the opt-in commands live in exactly one file. Docs-sourced ([skills](https://code.claude.com/docs/en/skills), [tools reference](https://code.claude.com/docs/en/tools-reference)): the Skill tool "executes a skill within the main conversation" and `Skill(name)` is the documented permission syntax — but skill-from-skill nesting is NOT explicitly documented. Verify on the first live setup run.
 
@@ -201,7 +201,7 @@ Consequences for togi:
 - **repo**: `env.TOGI_ENABLED = "1"` in `.claude/settings.local.json` — this repo only
 - **global**: same key in `~/.claude/settings.json` — every repo for this user
 
-**Why opt-in.** `/plugin marketplace add` registers user-globally (`~/.claude/plugins/known_marketplaces.json` — there is no project-scoped form), and `/plugin install` defaults to **user scope** ([discover & install plugins](https://code.claude.com/docs/en/discover-plugins)), so the hooks fire in every repo on the machine. Enabling by default would therefore have meant billing sweeps in unrelated repos and writing `.claude/friction/` files into repos whose `.gitignore` was never configured — an accidental-commit/leak hazard. Opt-in also makes install scope irrelevant: a user-scope install is safe because it is dormant everywhere the developer hasn't enabled it.
+**Why opt-in.** `/plugin marketplace add` registers user-globally (`~/.claude/plugins/known_marketplaces.json` — there is no project-scoped form), and `/plugin install` defaults to **user scope** ([discover & install plugins](https://code.claude.com/docs/en/discover-plugins)), so the hooks fire in every repo on the machine. Enabling by default would therefore have meant billing sweeps in unrelated repos and writing `.togi/friction/` files into repos whose `.gitignore` was never configured — an accidental-commit/leak hazard. Opt-in also makes install scope irrelevant: a user-scope install is safe because it is dormant everywhere the developer hasn't enabled it.
 
 ### Precedence
 
@@ -209,7 +209,7 @@ A repo-local `TOGI_ENABLED=0` overrides a global `1` — settings precedence is 
 
 ### One-time opt-in notice
 
-In repos carrying the committed adoption note `.claude/togi.md` (see [§6](#6-team-adoption--distribution)), `SessionStart` shows not-yet-opted-in developers a single notice (cost + `/togi:enable`) and drops a marker at `.claude/togi-notice-shown` (git-ignored by setup) so it never repeats. Repos without the adoption note stay completely silent — that is the guard against user-scope installs nagging in unrelated projects.
+In repos carrying the committed adoption note `.togi/togi.md` (see [§6](#6-team-adoption--distribution)), `SessionStart` shows not-yet-opted-in developers a single notice (cost + `/togi:enable`) and drops a marker at `.togi/togi-notice-shown` (git-ignored by setup) so it never repeats. Repos without the adoption note stay completely silent — that is the guard against user-scope installs nagging in unrelated projects.
 
 ### Configuration
 
@@ -217,7 +217,7 @@ In repos carrying the committed adoption note `.claude/togi.md` (see [§6](#6-te
 |---|---|---|
 | `TOGI_ENABLED` | `0` | The only switch, **off by default**. `1` activates friction capture — including the end-of-session sweep (one API call). A repo-local `0` overrides a global `1`. |
 | `TOGI_EVENT_THRESHOLD` | `10` | Friction events accumulated before the startup reminder appears. See the cap/threshold decoupling in [§7](#7-processing-friction-into-docs). |
-| `TOGI_DEBUG` | `0` | `1` writes structured hook logs to `.claude/togi.log` in the project directory. |
+| `TOGI_DEBUG` | `0` | `1` writes structured hook logs to `.togi/togi.log` in the project directory. |
 
 `TOGI_HEADLESS` and `TOGI_SWEEP` are internal — set on the spawned sweep child, not user-facing.
 
@@ -234,13 +234,13 @@ In repos carrying the committed adoption note `.claude/togi.md` (see [§6](#6-te
 
 Committed marketplace/plugin entries are the platform's documented team pattern ("Require marketplaces for your team" — see [plugin marketplaces](https://code.claude.com/docs/en/plugin-marketplaces) and [Claude Code settings](https://code.claude.com/docs/en/settings)), and teammates do get a prompt at folder-trust — but the prompt's decline behavior is undocumented, hooks get no separate trust step, and even "dormant" hooks execute at every session boundary. Committing enablement would grant togi's author code execution on every teammate's machine *on their behalf*, which contradicts togi's own supply-chain posture: code lands on a machine only when its owner installed it.
 
-Instead the repo carries an **adoption note**: `.claude/togi.md` (install commands + cost model; inert) plus a pointer section in `CONTRIBUTING.md`/`README.md`, with the setup PR as the team's review artifact. The adoption note doubles as the signal for the one-time opt-in notice ([§5](#5-activation--opt-in)).
+Instead the repo carries an **adoption note**: `.togi/togi.md` (install commands + cost model; inert) plus a pointer section in `CONTRIBUTING.md`/`README.md`, with the setup PR as the team's review artifact. The adoption note doubles as the signal for the one-time opt-in notice ([§5](#5-activation--opt-in)).
 
 `/togi:setup` commits three inert files:
 
-1. `.claude/togi.md` — the adoption note (install commands, cost model)
+1. `.togi/togi.md` — the adoption note (install commands, cost model)
 2. a pointer section in `CONTRIBUTING.md` (or `README.md`)
-3. `.gitignore` entries — `/.claude/friction/`, `/.claude/settings.local.json`, `/.claude/togi.log`, `/.claude/togi-notice-shown` (never `.claude/` wholesale, which would hide files teams commit deliberately)
+3. `.gitignore` entries — `/.togi/friction/`, `/.claude/settings.local.json`, `/.togi/togi.log`, `/.togi/togi-notice-shown` (never `.togi/` wholesale — it holds the committed adoption note — nor `.claude/` wholesale, which would hide files teams commit deliberately)
 
 Each developer then installs togi deliberately (the two `/plugin` commands, then `/togi:enable`). Developers who already have the plugin get a one-time notice in adopted repos pointing them to `/togi:enable`; beyond that, nothing runs on their account without their say-so.
 
@@ -278,15 +278,15 @@ The cap (5) and the reminder threshold (default `TOGI_EVENT_THRESHOLD` = 10) are
 
 Togi's promise is "PR merged → agent reads better docs → fewer stumbles", but nothing ever verified the last arrow — and the cleanup phase actively destroyed the data needed to check, `rm`-ing friction files after processing. A gap recurring *after* its fix landed is the most valuable signal in the system (the rule is too weak, lives in a doc agents don't read, or the PR never merged) and was indistinguishable from a brand-new event.
 
-Now `update-context-docs` **archives instead of deletes**: one file per run under `.claude/friction/archive/`, every event (excluded ones included) annotated with `processed_date`, `outcome` (`doc_updated`/`excluded`), and `target_docs`. Before editing, the skill compares incoming event groups against the archive — semantically, by `body` text (free-form prose, so compare meaning, not strings) — and flags:
+Now `update-context-docs` **archives instead of deletes**: one file per run under `.togi/friction/archive/`, every event (excluded ones included) annotated with `processed_date`, `outcome` (`doc_updated`/`excluded`), and `target_docs`. Before editing, the skill compares incoming event groups against the archive — semantically, by `body` text (free-form prose, so compare meaning, not strings) — and flags:
 
 - **Recurrence after fix** (`doc_updated`, event `date` > `processed_date`): the fix didn't take. Severity floor: medium; strengthen or relocate the previous rule instead of appending a near-duplicate. Caveat the skill is told about: a recurrence may just mean the fix PR hasn't merged yet.
 - **Recurrence after exclusion**: previously dismissed as noise and came back — surfaced to the user as "probably real after all".
 
 Design constraints honored:
 
-- Pending and archived events live in sibling directories — `.claude/friction/pending/` (written by the sweep, counted by the session-start reminder) and `.claude/friction/archive/` (written at processing, read only by the recurrence check) — so every consumer reads exactly the directory it means; no depth-limiting convention for a scan to forget.
-- `.gitignore`'s `/.claude/friction/` covers both directories: local history, never committed (same privacy posture as pending events).
+- Pending and archived events live in sibling directories — `.togi/friction/pending/` (written by the sweep, counted by the session-start reminder) and `.togi/friction/archive/` (written at processing, read only by the recurrence check) — so every consumer reads exactly the directory it means; no depth-limiting convention for a scan to forget.
+- `.gitignore`'s `/.togi/friction/` covers both directories: local history, never committed (same privacy posture as pending events).
 - The archive write is a `Write` into protected `.claude` and prompts once per run — accepted, not routed around ([§4](#4-privacy--security)).
 - Archive files older than ~2 months are pruned at cleanup. The window only needs to cover PR-merge lag plus a few sessions on the fixed docs — recurrence slower than that is indistinguishable from new friction — and the whole archive enters the skill's context every run, so retention is a context-bloat knob, not just disk hygiene.
 

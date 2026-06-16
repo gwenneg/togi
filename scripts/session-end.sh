@@ -129,7 +129,7 @@ log "session-end.sh" "launching headless sweep (claude -p --resume $SESSION_ID -
   fi
 
   if [ "$_count" -gt 0 ]; then
-    _friction_dir="${CLAUDE_PROJECT_DIR:-.}/.claude/friction/pending"
+    _friction_dir="${CLAUDE_PROJECT_DIR:-.}/.togi/friction/pending"
     mkdir -p "$_friction_dir"
     _file="${_friction_dir}/$(date +%Y%m%dT%H%M%S)-${SESSION_ID}.json"
     # One file per sweep: a date on each event (events regroup across sweeps) and an
