@@ -7,7 +7,7 @@
 # Requires: TOGI_DEBUG (optional, default 0), CLAUDE_PROJECT_DIR (optional, default .)
 
 if [ "${TOGI_DEBUG:-0}" = "1" ]; then
-  _togi_log_file="${CLAUDE_PROJECT_DIR:-.}/.claude/togi.log"
+  _togi_log_file="${CLAUDE_PROJECT_DIR:-.}/.togi/togi.log"
   mkdir -p "$(dirname "$_togi_log_file")" 2>/dev/null || true
   log() {
     local src="$1"; shift

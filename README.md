@@ -9,7 +9,7 @@ Each stumble is a **friction event**: a signal that the shared context docs fail
 ## How it works
 
 ```
-session ends → session-end.sh → forked headless sweep → friction files written to .claude/friction/pending/
+session ends → session-end.sh → forked headless sweep → friction files written to .togi/friction/pending/
                                                                     ↓
                                next session start → session-start.sh → "12 friction events. Update the docs."
                                                                     ↓
@@ -72,7 +72,7 @@ Set in `.claude/settings.json` (team-wide) or `.claude/settings.local.json` (per
 
 ## Privacy & safety
 
-The sweep resumes your session under your own credentials, exactly as if you had resumed it yourself — nothing goes to any third party, and your original transcript is left byte-identical. The sweep runs with [**all tools denied**](https://code.claude.com/docs/en/permissions), so injected session content can't run commands or read secrets. Friction files stay local under `.claude/friction/` (git-ignored). Sessions ended by crash or SIGKILL aren't swept; recurring gaps get caught on later sessions. See [Privacy & security](docs/internals.md#4-privacy--security).
+The sweep resumes your session under your own credentials, exactly as if you had resumed it yourself — nothing goes to any third party, and your original transcript is left byte-identical. The sweep runs with [**all tools denied**](https://code.claude.com/docs/en/permissions), so injected session content can't run commands or read secrets. Friction files stay local under `.togi/friction/` (git-ignored). Sessions ended by crash or SIGKILL aren't swept; recurring gaps get caught on later sessions. See [Privacy & security](docs/internals.md#4-privacy--security).
 
 ## Staying up to date
 
@@ -88,7 +88,7 @@ Releases are pinned to an immutable commit SHA so work-in-progress on `main` nev
 
 ## Troubleshooting
 
-Sweep not running or writing no friction files? Set `TOGI_DEBUG=1` in `.claude/settings.local.json` (`env` block) to write structured logs to `.claude/togi.log`.
+Sweep not running or writing no friction files? Set `TOGI_DEBUG=1` in `.claude/settings.local.json` (`env` block) to write structured logs to `.togi/togi.log`.
 
 Sweeps failing or billing the wrong account? The sweep inherits your shell's credentials, and Claude Code ranks `ANTHROPIC_API_KEY` **above** your subscription login ([auth precedence](https://code.claude.com/docs/en/authentication.md#authentication-precedence)). So an exported `ANTHROPIC_API_KEY` silently bills sweeps to that key instead of the Agent SDK credit — and if the key is expired or from a disabled org, sweeps fail rather than falling back. Run `unset ANTHROPIC_API_KEY` (and check `claude` `/status`) to use your subscription. See the [cost model](docs/internals.md#which-account-gets-billed-ambient-anthropic_api_key).
 

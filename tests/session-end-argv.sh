@@ -83,7 +83,7 @@ FAKE_EOF
 
   # Wait up to 5 s more for the subshell to parse JSON and write the friction file.
   for i in $(seq 1 50); do
-    [ -n "$(find "$tmpdir/.claude/friction/pending" -name '*.json' 2>/dev/null | head -1)" ] && break
+    [ -n "$(find "$tmpdir/.togi/friction/pending" -name '*.json' 2>/dev/null | head -1)" ] && break
     sleep 0.1
   done
 
@@ -118,7 +118,7 @@ FAKE_EOF
 
   # --- friction file assertions ---
   local friction_file
-  friction_file="$(find "$tmpdir/.claude/friction/pending" -name "*.json" 2>/dev/null | head -1)"
+  friction_file="$(find "$tmpdir/.togi/friction/pending" -name "*.json" 2>/dev/null | head -1)"
   [ -n "$friction_file" ] || fail "friction JSON file not created from sweep output"
   if [ -n "$friction_file" ]; then
     # Header: per-sweep cost only — date lives on each event, not the header.

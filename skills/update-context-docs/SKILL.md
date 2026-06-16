@@ -1,9 +1,9 @@
 ---
 name: update-context-docs
-description: Turn accumulated togi friction events into context-doc improvements — group them by root cause, choose where each fix belongs, edit or create the docs, and open a pull request. Use whenever friction events have piled up in .claude/friction/pending/ (e.g. the startup reminder fired), or when the user asks to process captured friction or update context docs from it.
+description: Turn accumulated togi friction events into context-doc improvements — group them by root cause, choose where each fix belongs, edit or create the docs, and open a pull request. Use whenever friction events have piled up in .togi/friction/pending/ (e.g. the startup reminder fired), or when the user asks to process captured friction or update context docs from it.
 allowed-tools:
   - Bash(find *)
-  - Bash(rm .claude/friction/pending/*)
+  - Bash(rm .togi/friction/pending/*)
   - Bash(git add *)
   - Bash(git branch *)
   - Bash(git checkout *)
@@ -18,7 +18,7 @@ allowed-tools:
 
 ## Phase 1: Read friction events
 
-Read the JSON session files in `.claude/friction/pending/`. If none exist, report "No friction events to process." and stop.
+Read the JSON session files in `.togi/friction/pending/`. If none exist, report "No friction events to process." and stop.
 
 Read each file. Each one is one session's sweep: an optional `sweep_cost_usd` header (the measured cost, summed later for the PR's cost line) and an `events` array. Each event carries:
 - `body`: one paragraph describing the friction and the rule that would prevent recurrence. This is the field that matters most — it drives grouping, doc placement, the recurrence match, and the edit itself
@@ -42,7 +42,7 @@ Survey the repo's context docs — `CLAUDE.md`, committed `.claude/*.md` files, 
 
 ### Recurrence check
 
-Read the archive: every `*.json` under `.claude/friction/archive/` (absent until the first run completes). Archived events carry the original capture fields plus `processed_date`, `outcome` (`doc_updated` or `excluded`), and `target_docs` (for `doc_updated`).
+Read the archive: every `*.json` under `.togi/friction/archive/` (absent until the first run completes). Archived events carry the original capture fields plus `processed_date`, `outcome` (`doc_updated` or `excluded`), and `target_docs` (for `doc_updated`).
 
 Compare each event group against the archive by root cause — judge from the `body` text semantically; bodies are free-form prose, so compare meaning, not strings:
 
@@ -104,7 +104,7 @@ If a `promptfoo.yaml` or similar eval config exists, propose a new test case for
 
 Processed events are archived, not destroyed — the Phase 2 recurrence check depends on this history. Whether a fix actually took is the one measure of togi's value, and it can only be measured against what was fixed before.
 
-1. Write one archive file for the run — `.claude/friction/archive/YYYY-MM-DD.json` (append `-2`, `-3`, … if taken) — containing every event from the processed session files (each already carrying its `date`), including excluded ones, each annotated with:
+1. Write one archive file for the run — `.togi/friction/archive/YYYY-MM-DD.json` (append `-2`, `-3`, … if taken) — containing every event from the processed session files (each already carrying its `date`), including excluded ones, each annotated with:
    - `processed_date`: today's ISO date
    - `outcome`: `doc_updated` or `excluded`
    - `target_docs`: the doc(s) edited for its group (`doc_updated` only)
@@ -112,11 +112,11 @@ Processed events are archived, not destroyed — the Phase 2 recurrence check de
 2. Delete the original session files:
 
    ```bash
-   rm .claude/friction/pending/<filename>.json
+   rm .togi/friction/pending/<filename>.json
    ```
 3. Delete archive files whose `processed_date` is more than 2 months old. The window only needs to span PR-merge lag plus a few sessions on the fixed docs — a gap recurring slower than that is indistinguishable from new friction — and the whole archive is read into context at every run, so stale events are pure bloat.
 
-The archive lives under `.claude/friction/`, which setup git-ignores — it is local history, never committed.
+The archive lives under `.togi/friction/`, which setup git-ignores — it is local history, never committed.
 
 ## Phase 8: Commit and open a PR
 
