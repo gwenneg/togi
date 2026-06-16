@@ -114,6 +114,12 @@ The core problem: detect friction events (corrections, clarifications, mistakes,
 
 **Typical cost: $0.05–$0.20 per session**, billed at standard API rates. The sweep is a headless `claude -p` run, so it draws from Anthropic's separate monthly [Agent SDK credit](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan) — for subscription users a per-plan dollar credit (≈$20 Pro / $100 Max 5x / $200 Max 20x, no rollover), not your general plan usage limits. Once that credit is exhausted, sweeps pause until it resets unless you have enabled overflow ("usage credits") billing. The sweep runs **only for opted-in developers** — an installed-but-unenabled plugin makes no API calls at all.
 
+### Which account gets billed (ambient `ANTHROPIC_API_KEY`)
+
+The "draws from the Agent SDK credit" line above holds **only when no higher-precedence credential is present in the sweep's environment**. The `SessionEnd` hook is a child of your Claude Code session, so the sweep inherits that session's environment — and `session-end.sh` sets no credential of its own (no `--bare`, no `unset`), so Claude Code's normal [authentication precedence](https://code.claude.com/docs/en/authentication.md#authentication-precedence) applies: cloud-provider creds → `ANTHROPIC_AUTH_TOKEN` → **`ANTHROPIC_API_KEY`** → `apiKeyHelper` → `CLAUDE_CODE_OAUTH_TOKEN` → subscription OAuth. The API key ranks **above** the subscription login.
+
+Consequence: a developer with `ANTHROPIC_API_KEY` exported (common in dev shells, CI, and org setups) has every sweep **billed to that key at standard API rates** — not the Agent SDK credit, and not their subscription. And because the approval prompt that gates a custom key in interactive mode is skipped in headless mode — per the [auth docs](https://code.claude.com/docs/en/authentication.md#authentication-precedence), "In non-interactive mode (`-p`), the key is always used when present" — this redirect happens **silently**, with no consent step at sweep time. This is the supported way to run togi on an API-key account rather than a subscription; it is also a billing surprise if the key is ambient and unintended. To force subscription billing regardless of environment, `unset ANTHROPIC_API_KEY` in the shell that launches Claude Code.
+
 ### Derivation (pricing arithmetic, not measured invoices)
 
 - A sweep replays the **entire session context as input** via `--resume --fork-session`; the capture prompt (~200 tokens) and the JSON output (hundreds of tokens) are negligible next to it.

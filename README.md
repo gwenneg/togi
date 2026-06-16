@@ -88,6 +88,8 @@ Releases are pinned to an immutable commit SHA so work-in-progress on `main` nev
 
 Sweep not running or writing no friction files? Set `TOGI_DEBUG=1` in `.claude/settings.local.json` (`env` block) to write structured logs to `.claude/togi.log`.
 
+Sweeps failing or billing the wrong account? The sweep inherits your shell's credentials, and Claude Code ranks `ANTHROPIC_API_KEY` **above** your subscription login ([auth precedence](https://code.claude.com/docs/en/authentication.md#authentication-precedence)). So an exported `ANTHROPIC_API_KEY` silently bills sweeps to that key instead of the Agent SDK credit — and if the key is expired or from a disabled org, sweeps fail rather than falling back. Run `unset ANTHROPIC_API_KEY` (and check `claude` `/status`) to use your subscription. See the [cost model](docs/internals.md#which-account-gets-billed-ambient-anthropic_api_key).
+
 ## Going deeper
 
 The [internals doc](docs/internals.md) is the topic-by-topic reference behind every decision:
