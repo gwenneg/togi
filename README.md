@@ -32,6 +32,7 @@ Togi is distributed as a Claude Code [plugin marketplace](https://code.claude.co
 ```
 /plugin marketplace add gwenneg/togi
 /plugin install togi@togi
+/reload-plugins
 /togi:setup
 ```
 
@@ -80,6 +81,7 @@ Auto-update is off and Claude Code sends no new-version notification — **watch
 ```
 /plugin marketplace update      # refresh the catalog (picks up the new pinned commit)
 /plugin update togi@togi        # install at that commit
+/reload-plugins                 # load the updated hook code
 ```
 
 Releases are pinned to an immutable commit SHA so work-in-progress on `main` never reaches you. The full rationale — and why a plugin's security bar is closer to a software-update service than a library — is in [Supply chain & releases](docs/internals.md#8-supply-chain--releases).
