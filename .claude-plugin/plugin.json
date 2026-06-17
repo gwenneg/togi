@@ -1,6 +1,9 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "togi",
+  "displayName": "Togi",
   "description": "Captures AI coding friction — corrections, clarifications, denied tool calls — in-session at no extra cost, and turns recurring doc gaps into context-doc pull requests.",
+  "keywords": ["context-docs", "documentation", "friction", "dx"],
   "repository": "https://github.com/gwenneg/togi",
   "license": "Apache-2.0"
 }

@@ -235,7 +235,7 @@ Distribution has two independent layers, and with the choices togi makes, neithe
 1. **The marketplace catalog** ([`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json), see [creating a marketplace](https://code.claude.com/docs/en/plugin-marketplaces)) — fetched from `main` when a user adds the marketplace, and refreshed **only** when they explicitly run `/plugin marketplace update`. **Auto-update is off** (Claude Code's default for third-party marketplaces, which togi never overrides — see [discover & install plugins](https://code.claude.com/docs/en/discover-plugins)), so nothing refreshes it at startup.
 2. **The plugin code** — the catalog pins the plugin `source` to a **full commit `sha`** (a plugin source supports both `ref` and `sha`, per the [marketplace reference](https://code.claude.com/docs/en/plugin-marketplaces)):
    ```json
-   "source": { "source": "github", "repo": "gwenneg/togi", "sha": "<40-char commit>" }
+   "source": { "source": "github", "repo": "gwenneg/togi", "ref": "vX.Y.Z", "sha": "<40-char commit>" }
    ```
    Installing or updating togi fetches the plugin from that exact commit, not from `main`. Each release commit also carries a human-readable tag (e.g. `vX.Y.Z`) for reference, but the pin resolves the SHA, not the tag. A relative `"./."` source would instead track whatever ref the catalog was fetched at (effectively `main`) — the explicit `github` + `sha` source is what decouples the code users run from `main`.
 
@@ -251,9 +251,12 @@ The goal is three properties, in priority order:
 
 Given the platform's constraints (no plugin signing, hooks trusted implicitly, source fetched directly from git), **SHA-pin + auto-update-off is the most secure configuration available**: it strictly dominates the alternatives — a relative `"./."` source (tracks `main`, ships everything), a `ref`/tag pin (mutable), or auto-update on (silent) — on every one of the three properties above.
 
-### `version` is omitted on purpose
+### `version` in the marketplace entry, not in `plugin.json`
 
-`version` is Claude Code's **update cache key** (resolution order: `plugin.json` `version` → marketplace entry `version` → source commit SHA — see the [plugins reference](https://code.claude.com/docs/en/plugins-reference)). **`version` is deliberately omitted from `plugin.json`** so the identity falls back to the pinned source SHA — making the SHA both the integrity pin and the cache key. A release is then a **single** `sha` bump: it changes the identity (triggers the update) and fixes the code (integrity) at once, with no second knob to keep in sync. The alternative — keeping an explicit `version` — would force bumping both `version` and `sha` in lockstep every release, a drift footgun where SHA-only ships nothing and version-only ships stale code. Trade-off accepted: the in-tool plugin version is now a commit SHA rather than a friendly string (human-readable naming lives in git tags + GitHub Releases).
+`version` is Claude Code's **update cache key** (resolution order: `plugin.json` `version` → marketplace entry `version` → source commit SHA — see the [plugins reference](https://code.claude.com/docs/en/plugins-reference)). Togi sets `version` in the **marketplace entry** only — never in `plugin.json`. Two reasons, one per file:
+
+- **`plugin.json` omits `version`** because `plugin.json` is priority #1 in the resolution order. If it set a version, that string would silently win over the marketplace entry value, so bumping the marketplace entry alone would not trigger updates — a drift footgun where a version bump in the wrong file ships nothing.
+- **The marketplace entry sets `version`** so users see a human-readable string (e.g. `0.2.1`) in `claude plugin list` instead of a raw commit SHA. The SHA remains the security pin; the version string is the cache key. Both must change together on every release — the release workflow enforces this atomically: one PR updates `version`, `ref`, and `sha` in `marketplace.json` in lockstep.
 
 ### Honest residual risks
 
@@ -265,18 +268,16 @@ This posture is not a complete defense, and the gaps point to complementary cont
 
 ### Cutting a release
 
-Releases are deliberate — pushing to `main` does **not** ship code to users.
+Releases are deliberate — pushing to `main` does **not** ship code to users. Content commits land on `main` as usual; CI then automates the release plumbing:
 
-1. Land all changes on `main`. The final commit is the release commit. If the plugin `description` changed, keep `plugin.json` and the `marketplace.json` plugin entry identical — nothing enforces it, and they drift otherwise.
-2. Tag the release commit and push the tag (human-readable naming only — the pin resolves the SHA, not the tag):
-   ```bash
-   git tag -s vX.Y.Z -m "togi vX.Y.Z" && git push origin vX.Y.Z
-   ```
-   Prefer a **signed** tag (`-s`) and protect `v*` tags with a ruleset as hygiene.
-3. Set `sha` in `.claude-plugin/marketplace.json` to the full 40-char SHA of the release commit, and commit it to `main`. **This single bump is the release**: changing the pinned SHA changes the plugin's identity (so Claude Code detects an update) *and* fixes the exact, immutable code users run (tamper-evidence).
-4. Publish a [GitHub Release](https://github.com/gwenneg/togi/releases) with notes (`gh release create vX.Y.Z --generate-notes`) so users have a discovery signal and a changelog to evaluate the update against.
+1. **CI opens a release PR** — on every non-release push to `main`, `.github/workflows/release-pr.yml` infers the semver bump from conventional commit prefixes (`feat:` → minor, `fix:`/`chore:`/`docs:` → patch, `!:` suffix → major), then opens or updates a PR that bumps `version`, `ref`, and `sha` in `.claude-plugin/marketplace.json` atomically.
+2. **Review and merge** — the PR is the review artifact. Merging is the only manual step.
+3. **CI creates the git tag** — `.github/workflows/tag-release.yml` detects the release commit (message starts with `release:`) and pushes the tag `vX.Y.Z` via the GitHub API with no checkout.
+4. **Publish a GitHub Release** (manual) — `gh release create vX.Y.Z --generate-notes` gives users a discovery signal and a changelog to evaluate the update against.
 
-> **Verified:** a pinned-SHA bump delivers updates. With `version` omitted, the plugin identity falls back to the source commit SHA; bumping the pin (`241c78b` → `41e0a31`) then running `/plugin marketplace update` + `/plugin update togi@togi` moved an installed client to the new commit and ran the new hook code (the new telemetry stamps appeared in its output). A live `/plugin install` of a pinned `sha` source also resolved as documented. Re-verify if a Claude Code update changes plugin resolution.
+The triple update (`version` + `ref` + `sha`) is the release: the version string changes the plugin's identity so Claude Code detects an update; the SHA fixes the exact, immutable bytes users run; the ref is the human-readable tag for audits.
+
+> **Verified (prior design — re-verify with version field):** a pinned-SHA bump delivers updates. With `version` omitted, the plugin identity fell back to the source commit SHA; bumping the pin (`241c78b` → `41e0a31`) then running `/plugin marketplace update` + `/plugin update togi@togi` moved an installed client to the new commit and ran the new hook code (the new telemetry stamps appeared in its output). With `version` now set in the marketplace entry, the identity is the version string — the update flow needs re-verification with the new design. A live `/plugin install` of a pinned `sha` source resolved as documented — still expected to hold.
 
 ### Staying up to date
 
