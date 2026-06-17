@@ -1,6 +1,6 @@
 # 8. SessionEnd digest → sweep at next SessionStart
 
-> Considered for togi's friction capture, not chosen. See the [alternatives comparison](../internals.md#2-why-a-session-end-sweep-alternatives-considered) for how it stacks up against the others. This file explains the approach and sketches how to build it if revisited.
+> Considered for togi's friction capture, not chosen. See the [alternatives comparison](../internals.md#2-friction-capture-alternatives-considered) for how it stacks up against the others. This file explains the approach and sketches how to build it if revisited.
 
 **One-liner:** `SessionEnd` writes a lightweight digest of the session (no API call); the next `SessionStart` runs the friction sweep over that digest — preserving "no out-of-session API calls."
 

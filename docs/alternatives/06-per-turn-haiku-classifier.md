@@ -1,6 +1,6 @@
 # 6. Per-turn Haiku classifier in a Stop hook
 
-> Considered for togi's friction capture, not chosen. See the [alternatives comparison](../internals.md#2-why-a-session-end-sweep-alternatives-considered) for how it stacks up against the others. This file explains the approach and sketches how to build it if revisited.
+> Considered for togi's friction capture, not chosen. See the [alternatives comparison](../internals.md#2-friction-capture-alternatives-considered) for how it stacks up against the others. This file explains the approach and sketches how to build it if revisited.
 
 **One-liner:** A `Stop` hook calls a cheap model (Haiku) at every turn end to classify whether the turn contained friction — semantic detection, no keyword blind spot, no UI noise.
 

@@ -1,6 +1,6 @@
 # 1. CLAUDE.md import — per-message friction instructions
 
-> Considered for togi's friction capture, not chosen. See the [alternatives comparison](../internals.md#2-why-a-session-end-sweep-alternatives-considered) for how it stacks up against the others. This file explains the approach and sketches how to build it if revisited.
+> Considered for togi's friction capture, not chosen. See the [alternatives comparison](../internals.md#2-friction-capture-alternatives-considered) for how it stacks up against the others. This file explains the approach and sketches how to build it if revisited.
 
 **One-liner:** A standing instruction, loaded via `CLAUDE.md` (or an `@import`), tells the working model to detect friction and write the event itself, in-session, as it happens — no hook, no extra process.
 
@@ -10,7 +10,7 @@
 
 ## What it is
 
-A markdown directive describing the four friction types (correction, clarification, mistake, denial) and instructing Claude, whenever one occurs during normal work, to append a friction-event file to togi's store. Detection and capture both happen inside the working session, by the working model, with no separate sweep or classifier. This is the version togi shipped first.
+A markdown directive describing the friction types (correction, clarification, denial) and instructing Claude, whenever one occurs during normal work, to append a friction-event file to togi's store. Detection and capture both happen inside the working session, by the working model, with no separate sweep or classifier. This is the version togi shipped first.
 
 ## Why it wasn't chosen
 

@@ -10,12 +10,22 @@
         ]
       }
     ],
-    "SessionEnd": [
+    "PermissionDenied": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/session-end.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/permission-denied.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/stop.sh"
           }
         ]
       }
