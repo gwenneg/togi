@@ -126,7 +126,7 @@ Consequences for togi:
 
 - The settings writes in `/togi:enable`, `/togi:disable`, and `/togi:setup` **always prompt**. Acceptable — the write toggles a consent flag, and the prompt puts that approval in front of exactly the right person at the right moment.
 - `enable` and `disable` carry **no `allowed-tools`**: an allowlist cannot deliver promptless operation for skills whose whole job is a protected write, so it buys nothing.
-- `setup` keeps `allowed-tools` only for steps pre-approval can actually serve: `Write`/`Read`/`Edit` for the files it commits (`.gitignore`, the CONTRIBUTING/README pointer, and the adoption note `.togi/togi.md` — all outside Claude Code's protected `.claude/`, so the grant actually pre-approves them), and the git/gh flow. (Moving the adoption note to `.togi/` is what made it pre-approvable; under `.claude/` it was protected and prompted regardless.) Everything else was removed: `Bash(mkdir*)`, `Bash(touch .claude/*)`, `Bash(mv .claude/*)`, later `Bash(jq*)` and `Bash(grep*)`. A dead grant is worse than a prompt.
+- `setup` keeps `allowed-tools` only for steps pre-approval can actually serve: `Write`/`Read`/`Edit` for the files it commits (`.gitignore`, the CONTRIBUTING/README pointer, and the adoption note `adopt-togi.md` — all outside Claude Code's protected `.claude/`, so the grant actually pre-approves them), and the git/gh flow. (Moving the adoption note out of `.claude/` is what made it pre-approvable; under `.claude/` it was protected and prompted regardless.) Everything else was removed: `Bash(mkdir*)`, `Bash(touch .claude/*)`, `Bash(mv .claude/*)`, later `Bash(jq*)` and `Bash(grep*)`. A dead grant is worse than a prompt.
 - Whether the check inspects Bash redirect targets (`> .claude/foo.tmp`) or `mv` side effects is undocumented. Togi deliberately does **not** rely on that either way — routing writes through a vehicle the checker might miss would be evading a safety feature via an undocumented gap.
 - `setup` Phase 3 delegates the opt-in to the `enable` skill via the `Skill` tool (`Skill(togi:enable)` in allowed-tools; `enable` accepts `repo`/`all` to skip its scope question), so the opt-in commands live in exactly one file. Docs-sourced ([skills](https://code.claude.com/docs/en/skills), [tools reference](https://code.claude.com/docs/en/tools-reference)): the Skill tool "executes a skill within the main conversation" and `Skill(name)` is the documented permission syntax — but skill-from-skill nesting is NOT explicitly documented. Verify on the first live setup run.
 
@@ -147,7 +147,7 @@ A repo-local `TOGI_ENABLED=0` overrides a global `1` — settings precedence is 
 
 ### One-time opt-in notice
 
-In repos carrying the committed adoption note `.togi/togi.md` (see [§6](#6-team-adoption--distribution)), `SessionStart` shows not-yet-opted-in developers a single notice (cost + `/togi:enable`) and drops a marker at `.togi/togi-notice-shown` (git-ignored by setup) so it never repeats. Repos without the adoption note stay completely silent — that is the guard against user-scope installs nagging in unrelated projects.
+In repos carrying the committed adoption note `adopt-togi.md` (see [§6](#6-team-adoption--distribution)), `SessionStart` shows not-yet-opted-in developers a single notice (cost + `/togi:enable`) and drops a marker at `.togi/togi-notice-shown` (git-ignored by setup) so it never repeats. Repos without the adoption note stay completely silent — that is the guard against user-scope installs nagging in unrelated projects.
 
 ### Configuration
 
@@ -170,13 +170,13 @@ In repos carrying the committed adoption note `.togi/togi.md` (see [§6](#6-team
 
 Committed marketplace/plugin entries are the platform's documented team pattern ("Require marketplaces for your team" — see [plugin marketplaces](https://code.claude.com/docs/en/plugin-marketplaces) and [Claude Code settings](https://code.claude.com/docs/en/settings)), and teammates do get a prompt at folder-trust — but the prompt's decline behavior is undocumented, hooks get no separate trust step, and even "dormant" hooks execute at every session boundary. Committing enablement would grant togi's author code execution on every teammate's machine *on their behalf*, which contradicts togi's own supply-chain posture: code lands on a machine only when its owner installed it.
 
-Instead the repo carries an **adoption note**: `.togi/togi.md` (install commands; inert) plus a pointer section in `CONTRIBUTING.md`/`README.md`, with the setup PR as the team's review artifact. The adoption note doubles as the signal for the one-time opt-in notice ([§5](#5-activation--opt-in)).
+Instead the repo carries an **adoption note**: `adopt-togi.md` (install commands; inert) plus a pointer section in `CONTRIBUTING.md`/`README.md`, with the setup PR as the team's review artifact. The adoption note doubles as the signal for the one-time opt-in notice ([§5](#5-activation--opt-in)).
 
 `/togi:setup` commits three inert files (the capture directive is **not** among them — it ships in the plugin and is delivered only by the gated `SessionStart` hook; see [alternative #10](alternatives/10-directive-delivery-via-import.md) for why it isn't committed/imported):
 
-1. `.togi/togi.md` — the adoption note (install commands)
+1. `adopt-togi.md` — the adoption note (install commands)
 2. a pointer section in `CONTRIBUTING.md` (or `README.md`)
-3. `.gitignore` entries — `/.togi/friction/`, `/.claude/settings.local.json`, `/.togi/togi.log`, `/.togi/togi-notice-shown` (never `.togi/` wholesale — it holds the committed adoption note — nor `.claude/` wholesale, which would hide files teams commit deliberately)
+3. `.gitignore` entries — `/.togi/` and `/.claude/settings.local.json` (never `.claude/` wholesale, which would hide files teams commit deliberately)
 
 Each developer then installs togi deliberately (the two `/plugin` commands, then `/togi:enable`). Developers who already have the plugin get a one-time notice in adopted repos pointing them to `/togi:enable`; beyond that, nothing runs on their account without their say-so.
 

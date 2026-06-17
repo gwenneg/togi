@@ -13,12 +13,12 @@ log "session-start.sh" "hook started (TOGI_ENABLED=${TOGI_ENABLED:-0})"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
 
 # Not opted in: show a one-time notice, but only in repos carrying the committed
-# adoption note (.togi/togi.md) — a user-scope install fires this hook everywhere, so
+# adoption note (adopt-togi.md) — a user-scope install fires this hook everywhere, so
 # repos without the note must stay silent.
 # See docs/internals.md#5-activation--opt-in for more details.
 if [ "${TOGI_ENABLED:-0}" != "1" ]; then
 
-  if [ ! -f "$PROJECT_DIR/.togi/togi.md" ]; then
+  if [ ! -f "$PROJECT_DIR/adopt-togi.md" ]; then
     log "session-start.sh" "exit: not enabled, repo has no togi adoption note — staying silent"
     exit 0
   fi
