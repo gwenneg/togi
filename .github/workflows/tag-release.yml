@@ -1,0 +1,33 @@
+name: Tag Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    if: "startsWith(github.event.head_commit.message, 'release:')"
+    permissions:
+      contents: write
+    steps:
+      - name: Create git tag
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=$(printf '%s' "$COMMIT_MSG" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          if [ -z "$TAG" ]; then
+            echo "::error::Could not extract version tag from commit message"
+            exit 1
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" --silent 2>/dev/null; then
+            echo "Tag $TAG already exists — skipping"
+            exit 0
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" \
+            --method POST \
+            -f "ref=refs/tags/$TAG" \
+            -f "sha=$SHA"
+          echo "Created tag $TAG"

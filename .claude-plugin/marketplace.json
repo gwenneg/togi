@@ -1,17 +1,22 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "togi",
   "description": "Sharpen AI context docs through friction (研ぎ)",
   "owner": {
-    "name": "Gwenneg Lepage",
-    "url": "https://github.com/gwenneg"
+    "name": "Gwenneg Lepage"
   },
   "plugins": [
     {
       "name": "togi",
       "description": "Captures AI coding friction — corrections, clarifications, denied tool calls — in-session at no extra cost, and turns recurring doc gaps into context-doc pull requests.",
+      "homepage": "https://github.com/gwenneg/togi",
+      "keywords": ["context-docs", "documentation", "friction", "dx"],
+      "category": "productivity",
+      "version": "0.2.1",
       "source": {
         "source": "github",
         "repo": "gwenneg/togi",
+        "ref": "v0.2.1",
         "sha": "a241dbf23d2ad54f97f630b4f33c359aef18fe28"
       }
     }
