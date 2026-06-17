@@ -1,4 +1,4 @@
-name: Tag Release
+name: Release
 
 on:
   push:
@@ -11,7 +11,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Create git tag
+      - name: Create release
         env:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
           SHA: ${{ github.sha }}
@@ -22,12 +22,11 @@ jobs:
             echo "::error::Could not extract version tag from commit message"
             exit 1
           fi
-          if gh api "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" --silent 2>/dev/null; then
-            echo "Tag $TAG already exists — skipping"
+          if gh release view "$TAG" 2>/dev/null; then
+            echo "Release $TAG already exists — skipping"
             exit 0
           fi
-          gh api "repos/$GITHUB_REPOSITORY/git/refs" \
-            --method POST \
-            -f "ref=refs/tags/$TAG" \
-            -f "sha=$SHA"
-          echo "Created tag $TAG"
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes \
+            --target "$SHA"
