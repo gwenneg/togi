@@ -10,14 +10,19 @@
       "name": "togi",
       "description": "Captures AI coding friction — corrections, clarifications, denied tool calls — in-session at no extra cost, and turns recurring doc gaps into context-doc pull requests.",
       "homepage": "https://github.com/gwenneg/togi",
-      "keywords": ["context-docs", "documentation", "friction", "dx"],
+      "keywords": [
+        "context-docs",
+        "documentation",
+        "friction",
+        "dx"
+      ],
       "category": "productivity",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "source": {
         "source": "github",
         "repo": "gwenneg/togi",
-        "ref": "v0.2.1",
-        "sha": "a241dbf23d2ad54f97f630b4f33c359aef18fe28"
+        "ref": "v0.2.2",
+        "sha": "6e70ea256fe9d78b8320598b93409e70fd40f4f4"
       }
     }
   ]
