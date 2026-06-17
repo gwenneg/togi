@@ -72,13 +72,27 @@ jobs:
         env:
           TAG: ${{ steps.semver.outputs.tag }}
           SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -B "release/$TAG"
-          git add .claude-plugin/marketplace.json
-          git commit -m "release: $TAG"
-          git push origin "release/$TAG" --force
+          BRANCH="release/$TAG"
+
+          # Create branch or force-move it to the content commit
+          if gh api "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH" --silent 2>/dev/null; then
+            gh api "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH" \
+              --method PATCH -f "sha=$SHA" -F "force=true"
+          else
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" \
+              --method POST -f "ref=refs/heads/$BRANCH" -f "sha=$SHA"
+          fi
+
+          # Commit the updated file via API — GitHub signs it automatically
+          FILE_SHA=$(gh api "repos/$GITHUB_REPOSITORY/contents/.claude-plugin/marketplace.json?ref=$BRANCH" --jq '.sha')
+          gh api "repos/$GITHUB_REPOSITORY/contents/.claude-plugin/marketplace.json" \
+            --method PUT \
+            -f "message=release: $TAG" \
+            -f "content=$(base64 -w 0 < .claude-plugin/marketplace.json)" \
+            -f "sha=$FILE_SHA" \
+            -f "branch=$BRANCH"
 
       - name: Open or update release PR
         if: steps.semver.outputs.skip == 'false'
