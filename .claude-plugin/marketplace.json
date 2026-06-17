@@ -17,12 +17,12 @@
         "dx"
       ],
       "category": "productivity",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "source": {
         "source": "github",
         "repo": "gwenneg/togi",
-        "ref": "v0.2.2",
-        "sha": "d5175801446b0aad160e0873a2d5fbaaa968983c"
+        "ref": "v0.2.3",
+        "sha": "50fa69805b0793a58b2043d9a65f18e505e25e20"
       }
     }
   ]
