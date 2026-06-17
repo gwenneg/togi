@@ -24,7 +24,7 @@ Output the following text verbatim before taking any other action:
 
 > **Togi** (研ぎ, to sharpen) turns AI friction — corrections, clarifications, denied tool calls — into context-doc pull requests. For developers who opt in, the working model jots a short note when it hits friction (and a hook records denied tool calls); once enough notes accumulate under `.togi/friction/pending/`, `/togi:update-context-docs` turns them into a doc PR.
 >
-> **What this setup commits: nothing executable.** Three inert files — `.gitignore` entries, an adoption note at `.togi/togi.md`, and a pointer in `CONTRIBUTING.md` (or `README.md`). No repo-level marketplace registration or plugin enablement: teammates get togi only by installing it themselves, and capture stays **off for everyone** (`TOGI_ENABLED=0`) until each developer personally opts in — you'll be offered that at the end of this setup.
+> **What this setup commits: nothing executable.** Three inert files — `.gitignore` entries, an adoption note at `adopt-togi.md`, and a pointer in `CONTRIBUTING.md` (or `README.md`). No repo-level marketplace registration or plugin enablement: teammates get togi only by installing it themselves, and capture stays **off for everyone** (`TOGI_ENABLED=0`) until each developer personally opts in — you'll be offered that at the end of this setup.
 >
 > **Cost.** Capture runs inside your normal Claude Code session — the model writes a short note when it hits friction — so there is no separate API call and no meaningful added cost. Denied tool calls are recorded by a local hook for free.
 >
@@ -41,7 +41,7 @@ If the user selects No, stop.
 Output the following text verbatim before taking any other action in this phase:
 
 > Making three inert changes:
-> - the adoption note `.togi/togi.md`
+> - the adoption note `adopt-togi.md`
 > - a pointer in `CONTRIBUTING.md` / `README.md`
 > - `.gitignore` entries
 >
@@ -51,7 +51,7 @@ Output the following text verbatim before taking any other action in this phase:
 
 ### 1. Adoption note
 
-Write `.togi/togi.md` with exactly this content:
+Write `adopt-togi.md` with exactly this content:
 
 ```markdown
 # This repo uses togi (研ぎ)
@@ -75,23 +75,21 @@ If `CONTRIBUTING.md` exists, append the following section to it; otherwise appen
 ```markdown
 ## AI friction capture (togi)
 
-This repo uses [togi](https://github.com/gwenneg/togi) to turn AI friction into context-doc improvements. Participation is opt-in per developer — see [.togi/togi.md](.togi/togi.md) for the setup commands.
+This repo uses [togi](https://github.com/gwenneg/togi) to turn AI friction into context-doc improvements. Participation is opt-in per developer — see [adopt-togi.md](adopt-togi.md) for the setup commands.
 ```
 
 ### 3. .gitignore
 
-Append any of the following lines that are not already present in `.gitignore`. Ignore only what togi creates — never `.togi/` wholesale (it holds the committed adoption note), nor `.claude/` wholesale, which would hide files teams commit deliberately (commands, agents, skills):
+Append any of the following lines that are not already present in `.gitignore`. Do not gitignore `.claude/` wholesale — that would hide files teams commit deliberately (commands, agents, skills):
 
 ```
 /.claude/settings.local.json
-/.togi/friction/
-/.togi/togi.log
-/.togi/togi-notice-shown
+/.togi/
 ```
 
 ### Report
 
-After completing all steps, print a summary of what was added vs. already present for each file touched: `.togi/togi.md`, the `CONTRIBUTING.md`/`README.md` pointer, and `.gitignore`.
+After completing all steps, print a summary of what was added vs. already present for each file touched: `adopt-togi.md`, the `CONTRIBUTING.md`/`README.md` pointer, and `.gitignore`.
 
 ## Phase 3: Offer to enable capture for this developer
 
@@ -114,13 +112,13 @@ The enable skill owns the opt-in commands and confirmation outputs — do not in
    git checkout -b chore/setup-togi <remote>/<default-branch>
    ```
 
-4. Stage exactly the three Phase 2 files — `.togi/togi.md`, `.gitignore`, and the pointer file — then commit with message: `chore: set up togi`
+4. Stage exactly the three Phase 2 files — `adopt-togi.md`, `.gitignore`, and the pointer file — then commit with message: `chore: set up togi`
 5. Push the branch to `origin` (on a fork that is your fork; `gh pr create` then targets the upstream repo automatically), and open a PR titled `Set up togi` with this body (adjust the pointer filename; append the standard `Generated with Claude Code` footer):
 
    ```markdown
    Sets up [togi](https://github.com/gwenneg/togi). Every time Claude stumbles in this repo — a wrong assumption, a missing convention, a denied command — that's a gap in our context docs. Togi captures those moments and turns them into doc PRs, so the same stumble doesn't happen twice.
 
-   **Is this safe to merge?** Yes — and you can verify it from the diff alone. The entire change is three inert text files: the adoption note `.togi/togi.md`, a pointer in `CONTRIBUTING.md`, and `.gitignore` entries. No settings, no hooks, no code: merging installs nothing and runs nothing on anyone's machine. If the diff shows anything beyond those files, reject this PR.
+   **Is this safe to merge?** Yes — and you can verify it from the diff alone. The entire change is three inert text files: the adoption note `adopt-togi.md`, a pointer in `CONTRIBUTING.md`, and `.gitignore` entries. No settings, no hooks, no code: merging installs nothing and runs nothing on anyone's machine. If the diff shows anything beyond those files, reject this PR.
 
-   **Trying it costs a minute.** Run the commands in `.togi/togi.md`, work normally, and check `.togi/friction/pending/` after a few sessions. Capture is opt-in per developer and runs inside your own session — the model writes a short note when it hits friction, nothing is sent to any third party, and there's no meaningful added cost. Haven't opted in? You'll see a one-time notice and nothing else will ever run. Leave any time with `/togi:disable`.
+   **Trying it costs a minute.** Run the commands in `adopt-togi.md`, work normally, and check `.togi/friction/pending/` after a few sessions. Capture is opt-in per developer and runs inside your own session — the model writes a short note when it hits friction, nothing is sent to any third party, and there's no meaningful added cost. Haven't opted in? You'll see a one-time notice and nothing else will ever run. Leave any time with `/togi:disable`.
    ```
