@@ -51,7 +51,7 @@ jobs:
             echo "bump=$BUMP"
             echo "skip=false"
             echo "commits<<EOF"
-            git log --pretty=format:"- %s" "$RANGE"
+            git log --pretty=tformat:"- %s" "$RANGE"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
