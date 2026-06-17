@@ -16,6 +16,7 @@ jobs:
           COMMIT_MSG: ${{ github.event.head_commit.message }}
           SHA: ${{ github.sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           TAG=$(printf '%s' "$COMMIT_MSG" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
           if [ -z "$TAG" ]; then
