@@ -1,6 +1,6 @@
 # 3. Conditional Stop hook (keyword grep on transcript)
 
-> Considered for togi's friction capture, not chosen. See the [alternatives comparison](../internals.md#2-why-a-session-end-sweep-alternatives-considered) for how it stacks up against the others. This file explains the approach and sketches how to build it if revisited.
+> Considered for togi's friction capture, not chosen. See the [alternatives comparison](../internals.md#2-friction-capture-alternatives-considered) for how it stacks up against the others. This file explains the approach and sketches how to build it if revisited.
 
 **One-liner:** A `Stop` hook greps the just-finished turn for correction cues, and only acts (block or inject) when a cue matches — turning the always-on wall of approach [2](02-unconditional-blocking-stop-hook.md) into an occasional, targeted prompt.
 

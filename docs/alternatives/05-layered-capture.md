@@ -1,6 +1,6 @@
 # 5. Layered capture — denials + keyword fast path + once-per-session sweep
 
-> Considered for togi's friction capture, not chosen. See the [alternatives comparison](../internals.md#2-why-a-session-end-sweep-alternatives-considered) for how it stacks up against the others. This file explains the approach and sketches how to build it if revisited.
+> Considered for togi's friction capture, not chosen. See the [alternatives comparison](../internals.md#2-friction-capture-alternatives-considered) for how it stacks up against the others. This file explains the approach and sketches how to build it if revisited.
 
 **One-liner:** Combine three cheap mechanisms — a `PermissionDenied` hook for denials, a keyword fast path for obvious corrections, and one transcript sweep per session for the rest — to reach high recall without any extra API call.
 

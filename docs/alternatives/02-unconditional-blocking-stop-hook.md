@@ -1,6 +1,6 @@
 # 2. Unconditional blocking Stop hook
 
-> Considered for togi's friction capture, not chosen. See the [alternatives comparison](../internals.md#2-why-a-session-end-sweep-alternatives-considered) for how it stacks up against the others. This file explains the approach and sketches how to build it if revisited.
+> Considered for togi's friction capture, not chosen. See the [alternatives comparison](../internals.md#2-friction-capture-alternatives-considered) for how it stacks up against the others. This file explains the approach and sketches how to build it if revisited.
 
 **One-liner:** A `Stop` hook fires at every turn end and *blocks* the stop, forcing the model to review the just-finished turn for friction before it is allowed to finish.
 

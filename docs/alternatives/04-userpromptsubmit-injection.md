@@ -1,6 +1,6 @@
 # 4. UserPromptSubmit silent additionalContext
 
-> Considered for togi's friction capture, not chosen. See the [alternatives comparison](../internals.md#2-why-a-session-end-sweep-alternatives-considered) for how it stacks up against the others. This file explains the approach and sketches how to build it if revisited.
+> Considered for togi's friction capture, not chosen. See the [alternatives comparison](../internals.md#2-friction-capture-alternatives-considered) for how it stacks up against the others. This file explains the approach and sketches how to build it if revisited.
 
 **One-liner:** A `UserPromptSubmit` hook silently injects the friction-capture instruction (via `additionalContext`) the moment the user submits a prompt, so the directive is fresh as the model handles that turn.
 

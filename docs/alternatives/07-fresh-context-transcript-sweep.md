@@ -1,6 +1,6 @@
 # 7. SessionEnd → headless sweep over the transcript (fresh context)
 
-> Considered for togi's friction capture, not chosen. See the [alternatives comparison](../internals.md#2-why-a-session-end-sweep-alternatives-considered) for how it stacks up against the others. This file explains the approach and sketches how to build it if revisited.
+> Considered for togi's friction capture, not chosen. See the [alternatives comparison](../internals.md#2-friction-capture-alternatives-considered) for how it stacks up against the others. This file explains the approach and sketches how to build it if revisited.
 
 **One-liner:** At `SessionEnd`, run a headless `claude -p` that reads the *serialized transcript* as fresh input and extracts friction — same high recall and invisibility as the chosen sweep, but without resuming the session.
 
