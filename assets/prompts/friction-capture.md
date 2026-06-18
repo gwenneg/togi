@@ -16,7 +16,7 @@ Also record an error you catch **yourself** if better docs would have prevented 
 
 Skip one-off scope changes, transient errors, slips you immediately fixed, and case-specific corrections. **Be selective** — a few real gaps per session, not every small exchange; a flood of marginal events is noise to whoever reviews them.
 
-When an event qualifies, write a **new markdown file** under `.togi/friction/pending/` (create the directory if needed), named with a short kebab-case slug of the root cause (e.g. `api-handler-location.md`). If a file for the same root cause already exists, reuse that filename. Use this format:
+When an event qualifies, run `mkdir -p .togi/friction/pending` (use that exact relative path, not an absolute one), then write a **new markdown file** under it, named with a short kebab-case slug of the root cause (e.g. `api-handler-location.md`). If a file for the same root cause already exists, reuse that filename. Use this format:
 
     # <type>
 
@@ -24,4 +24,4 @@ When an event qualifies, write a **new markdown file** under `.togi/friction/pen
 
     **Misleading doc:** <optional — a doc in your context that gave wrong or outdated guidance>
 
-where `<type>` is `correction` or `clarification`. Keep it lightweight — one short file, then carry on with your task. Do not edit project docs directly; that happens later via `/togi:update-context-docs`.
+where `<type>` is `correction` or `clarification`. Keep it lightweight — one short file, then carry on with your task. Do not edit project docs directly. After writing the file, output exactly one line: "Friction captured." — nothing more.
