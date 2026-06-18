@@ -1,11 +1,11 @@
-name: Release
+name: Create Release
 
 on:
   push:
     branches: [main]
 
 jobs:
-  tag:
+  create-release:
     runs-on: ubuntu-latest
     if: "startsWith(github.event.head_commit.message, 'release:')"
     permissions:
