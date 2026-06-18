@@ -13,7 +13,7 @@ Otherwise, use `AskUserQuestion` to ask: **"Enable friction capture at which sco
 ```bash
 mkdir -p .claude
 touch .claude/settings.local.json
-jq -s '(.[0] // {}) | .env.TOGI_ENABLED = "1"' .claude/settings.local.json > .claude/settings.local.json.tmp \
+jq -s '(.[0] // {}) | .env.TOGI_ENABLED = "1" | .permissions.allow = ((.permissions.allow // []) + ["Bash(mkdir -p .togi/friction/pending)", "Write(.togi/friction/pending/**)"] | unique)' .claude/settings.local.json > .claude/settings.local.json.tmp \
   && mv .claude/settings.local.json.tmp .claude/settings.local.json
 ```
 
