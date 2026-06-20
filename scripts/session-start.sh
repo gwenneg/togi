@@ -2,9 +2,7 @@
 # SessionStart hook — when enabled, injects the capture directive and (past the threshold)
 # a reminder to process friction; otherwise shows a one-time opt-in notice in adopted repos.
 
-# No -e: this hook is best-effort — a failure should drop the reminder, not abort
-# mid-script. set -u still catches unset-variable bugs.
-set -uo pipefail
+set -euo pipefail
 
 source "$(dirname "$0")/logging.sh"
 
@@ -28,24 +26,18 @@ if [ "${TOGI_ENABLED:-0}" != "1" ]; then
     log "session-start.sh" "exit: not enabled, opt-in notice already shown"
     exit 0
   fi
-  touch "$MARKER" 2>/dev/null
+  mkdir -p "$(dirname "$MARKER")"
+  touch "$MARKER"
   log "session-start.sh" "showing one-time opt-in notice (marker: $MARKER)"
   # Static JSON — no jq dependency on this path.
   printf '%s\n' '{"systemMessage": "Togi is set up in this repo but off for you. Opt in with /togi:enable — togi then captures AI friction (corrections, clarifications, denied tool calls) as local notes you process into doc PRs. Capture runs inside your session at no extra cost. This notice will not repeat."}'
   exit 0
 fi
 
-# jq required from here on — to emit the JSON response (the reminder box needs escaping).
-if ! command -v jq &>/dev/null; then
-  log "session-start.sh" "exit: jq not found on PATH — outputting error message"
-  echo '{"systemMessage": "Togi: jq is not installed. Install it to enable friction capture."}'
-  exit 0
-fi
-
 # Reset the Stop hook's turn counter so the nudge interval is always relative to this
 # directive delivery, regardless of whether this is startup, resume, clear, or compact.
 SESSION_ID=$(jq -r '.session_id')
-printf '%s' "0" > "${TMPDIR:-/tmp}/togi-refresh-${SESSION_ID}" 2>/dev/null
+printf '%s' "0" > "${TMPDIR:-/tmp}/togi-refresh-${SESSION_ID}"
 log "session-start.sh" "turn counter reset (session_id=${SESSION_ID})"
 
 # Count pending events only; processed events move to the sibling archive/, read by
@@ -53,14 +45,14 @@ log "session-start.sh" "turn counter reset (session_id=${SESSION_ID})"
 # count is just the number of pending files.
 # See docs/internals.md#7-processing-friction-into-docs for more details.
 FRICTION_DIR="$PROJECT_DIR/.togi/friction/pending"
-EVENT_COUNT=$(find "$FRICTION_DIR" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
-EVENT_COUNT=${EVENT_COUNT:-0}
+EVENT_COUNT=0
+[ -d "$FRICTION_DIR" ] && EVENT_COUNT=$(find "$FRICTION_DIR" -name "*.md" | wc -l | tr -d ' ')
 log "session-start.sh" "friction event count: $EVENT_COUNT (threshold: ${TOGI_EVENT_THRESHOLD:-10})"
 
 # Deliver the capture directive. This hook IS the delivery mechanism — the directive is
 # never imported anywhere, so it reaches the model exactly when capture is enabled (this
 # gated path). See docs/internals.md#1-architecture--lifecycle and alternative #10.
-DIRECTIVE=$(cat "${CLAUDE_PLUGIN_ROOT}/assets/prompts/friction-capture.md" 2>/dev/null)
+DIRECTIVE=$(cat "${CLAUDE_PLUGIN_ROOT}/assets/prompts/friction-capture.md" 2>/dev/null || true)
 [ -n "$DIRECTIVE" ] || log "session-start.sh" "warning: directive asset empty/missing"
 
 # The reminder (a user-visible systemMessage) is added only once the count reaches the

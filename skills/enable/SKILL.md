@@ -1,12 +1,15 @@
 ---
 name: enable
 description: Enable togi friction capture for you alone — this repo or all your repos; teammates unaffected. Use when the user wants to turn on, opt into, or start togi capture.
+allowed-tools:
+  - Bash(command -v jq)
 ---
 
 # Instructions
 
-If this skill was invoked with the argument `repo` or `all` (e.g. by `/togi:setup`), skip the next question and apply that scope directly.
-Otherwise, use `AskUserQuestion` to ask: **"Enable friction capture at which scope?"** Options: **This repo only** / **All my repos**.
+First, run `command -v jq`. If not found, output: "**jq is required but not installed.** Install it (e.g., `sudo dnf install jq` or `brew install jq`) and retry `/togi:enable`." Then stop.
+
+If this skill was invoked with the argument `repo` or `all` (e.g. by `/togi:setup`), apply that scope directly. Otherwise use `AskUserQuestion` to ask: **"Enable friction capture at which scope?"** Options: **This repo only** / **All my repos**.
 
 ## This repo only (`repo`)
 
