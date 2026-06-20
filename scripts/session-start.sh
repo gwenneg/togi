@@ -42,6 +42,12 @@ if ! command -v jq &>/dev/null; then
   exit 0
 fi
 
+# Reset the Stop hook's turn counter so the nudge interval is always relative to this
+# directive delivery, regardless of whether this is startup, resume, clear, or compact.
+SESSION_ID=$(jq -r '.session_id')
+printf '%s' "0" > "${TMPDIR:-/tmp}/togi-refresh-${SESSION_ID}" 2>/dev/null
+log "session-start.sh" "turn counter reset (session_id=${SESSION_ID})"
+
 # Count pending events only; processed events move to the sibling archive/, read by
 # update-context-docs and never counted here. One markdown file = one event, so the
 # count is just the number of pending files.
