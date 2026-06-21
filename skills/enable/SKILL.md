@@ -3,6 +3,7 @@ name: enable
 description: Enable togi friction capture for you alone — this repo or all your repos; teammates unaffected. Use when the user wants to turn on, opt into, or start togi capture.
 allowed-tools:
   - Bash(command -v jq)
+  - Bash(mkdir -p .togi/friction/pending)
 ---
 
 # Instructions
@@ -16,8 +17,9 @@ If this skill was invoked with the argument `repo` or `all` (e.g. by `/togi:setu
 ```bash
 mkdir -p .claude
 touch .claude/settings.local.json
-jq -s '(.[0] // {}) | .env.TOGI_ENABLED = "1" | .permissions.allow = ((.permissions.allow // []) + ["Bash(mkdir -p .togi/friction/pending)", "Write(.togi/friction/pending/**)"] | unique)' .claude/settings.local.json > .claude/settings.local.json.tmp \
+jq -s '(.[0] // {}) | .env.TOGI_ENABLED = "1" | .permissions.allow = ((.permissions.allow // []) + ["Write(.togi/friction/pending/**)"] | unique)' .claude/settings.local.json > .claude/settings.local.json.tmp \
   && mv .claude/settings.local.json.tmp .claude/settings.local.json
+mkdir -p .togi/friction/pending
 ```
 
 Then output:
@@ -32,8 +34,9 @@ Turn it off any time with /togi:disable.
 
 ```bash
 touch ~/.claude/settings.json
-jq -s '(.[0] // {}) | .env.TOGI_ENABLED = "1"' ~/.claude/settings.json > ~/.claude/settings.json.tmp \
+jq -s '(.[0] // {}) | .env.TOGI_ENABLED = "1" | .permissions.allow = ((.permissions.allow // []) + ["Write(.togi/friction/pending/**)"] | unique)' ~/.claude/settings.json > ~/.claude/settings.json.tmp \
   && mv ~/.claude/settings.json.tmp ~/.claude/settings.json
+mkdir -p .togi/friction/pending
 ```
 
 Then output:

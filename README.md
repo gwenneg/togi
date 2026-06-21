@@ -74,7 +74,7 @@ The skill groups events by root cause, proposes which docs to fix, flags recurre
 
 ## Privacy & safety
 
-Everything stays on your machine. Friction notes are written locally under `.togi/friction/` (git-ignored) and nothing is sent to any third party — capture happens in your own session under your own credentials. The capture directive ships in the plugin (`assets/prompts/friction-capture.md`) as plain, readable instructions, delivered into your session only when you've enabled togi; denied tool calls are recorded by a hook with no model involved. Doc edits never happen automatically — they only land through `/togi:update-context-docs`, which you review before it opens a PR. See [Privacy & security](docs/internals.md#4-privacy--security).
+Everything stays on your machine. Friction notes are written locally under `.togi/friction/` (git-ignored) and nothing is sent to any third party — capture happens in your own session under your own credentials. The capture directive ships in the plugin (`assets/prompts/session-start.md`) as plain, readable instructions, delivered into your session only when you've enabled togi; denied tool calls are recorded by a hook with no model involved. Doc edits never happen automatically — they only land through `/togi:update-context-docs`, which you review before it opens a PR. See [Privacy & security](docs/internals.md#4-privacy--security).
 
 ## Staying up to date
 

@@ -47,7 +47,7 @@ Output the following text verbatim before taking any other action in this phase:
 >
 > Nothing touches `.claude/settings.json` — committing marketplace or plugin entries would push togi's hooks onto every teammate's machine, and togi only runs where its owner installed it.
 >
-> Teammates who have togi see a one-time nudge toward `/togi:enable`; until they opt in, nothing runs. Set `TOGI_EVENT_THRESHOLD` (default `10`) to choose how many friction events trigger the startup reminder.
+> Teammates who have togi see a one-time notice toward `/togi:enable`; until they opt in, nothing runs. Set `TOGI_EVENT_THRESHOLD` (default `10`) to choose how many friction events trigger the startup reminder.
 
 ### 1. Adoption note
 
