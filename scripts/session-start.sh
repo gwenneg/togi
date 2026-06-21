@@ -34,7 +34,7 @@ if [ "${TOGI_ENABLED:-0}" != "1" ]; then
   exit 0
 fi
 
-# Reset the Stop hook's turn counter so the nudge interval is always relative to this
+# Reset the Stop hook's turn counter so the reminder interval is always relative to this
 # directive delivery, regardless of whether this is startup, resume, clear, or compact.
 SESSION_ID=$(jq -r '.session_id')
 printf '%s' "0" > "${TMPDIR:-/tmp}/togi-refresh-${SESSION_ID}"
@@ -52,8 +52,7 @@ log "session-start.sh" "friction event count: $EVENT_COUNT (threshold: ${TOGI_EV
 # Deliver the capture directive. This hook IS the delivery mechanism — the directive is
 # never imported anywhere, so it reaches the model exactly when capture is enabled (this
 # gated path). See docs/internals.md#1-architecture--lifecycle and alternative #10.
-DIRECTIVE=$(cat "${CLAUDE_PLUGIN_ROOT}/assets/prompts/friction-capture.md" 2>/dev/null || true)
-[ -n "$DIRECTIVE" ] || log "session-start.sh" "warning: directive asset empty/missing"
+DIRECTIVE=$(cat "${CLAUDE_PLUGIN_ROOT}/assets/prompts/session-start.md")
 
 # The reminder (a user-visible systemMessage) is added only once the count reaches the
 # threshold (default 10); the directive injection happens every enabled session.

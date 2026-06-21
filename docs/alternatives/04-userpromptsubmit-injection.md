@@ -22,7 +22,7 @@ Effectively approach 1 with better recency: it defeats habituation (fresh every 
 ## Implementation plan
 
 1. **Register a `UserPromptSubmit` hook.**
-2. **Emit `additionalContext`** carrying the friction directive (or a short salience nudge pointing at a fuller directive). Keep it terse — it is injected every user turn, so it is a recurring token cost.
+2. **Emit `additionalContext`** carrying the friction directive (or a short salience reminder pointing at a fuller directive). Keep it terse — it is injected every user turn, so it is a recurring token cost.
 3. **Optionally make it conditional** — grep the submitted `prompt` for correction cues and only inject when one appears, cutting the per-turn cost (at the recall cost of approach [3](03-conditional-stop-hook.md)).
 4. Reuse the existing counter and `/togi:update-context-docs`.
 

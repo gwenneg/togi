@@ -119,7 +119,7 @@ Processed events are archived, not destroyed — the Phase 2 recurrence check de
 
    where `<outcome>` is `doc_updated` or `excluded` (excluded events have no target docs). Archive **every** processed event, including excluded ones.
 
-2. Delete the original pending files:
+2. Delete the processed pending files — the `*.md` files only, never the `.togi/friction/pending/` directory itself (it must persist for future capture):
 
    ```bash
    rm .togi/friction/pending/<filename>.md
