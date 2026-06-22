@@ -277,12 +277,11 @@ This posture is not a complete defense, and the gaps point to complementary cont
 
 Releases are deliberate — pushing to `main` does **not** ship code to users. Content commits land on `main` as usual; CI then automates the release plumbing:
 
-1. **CI opens a release PR** — on every non-release push to `main`, `.github/workflows/release-pr.yml` infers the semver bump from conventional commit prefixes (`feat:` → minor, `fix:`/`chore:`/`docs:` → patch, `!:` suffix → major), then opens or updates a PR that bumps `version`, `ref`, and `sha` in `.claude-plugin/marketplace.json` atomically.
-2. **Review and merge** — the PR is the review artifact. Merging is the only manual step.
-3. **CI creates the git tag** — `.github/workflows/tag-release.yml` detects the release commit (message starts with `release:`) and pushes the tag `vX.Y.Z` via the GitHub API with no checkout.
-4. **Publish a GitHub Release** (manual) — `gh release create vX.Y.Z --generate-notes` gives users a discovery signal and a changelog to evaluate the update against.
+1. **CI opens a release PR** — on every non-release push to `main`, `.github/workflows/prepare-release.yml` infers the semver bump from conventional commit prefixes (`feat:` → minor, a `!` before the colon → major, everything else → patch), then opens or updates a PR that bumps `version`, `ref`, and `sha` in `.claude-plugin/marketplace.json` atomically. The pinned `sha` is the content commit the PR was generated from.
+2. **Review and merge** — the PR is the review artifact. Merging is the only manual step. Squash-merge it, so the release commit's subject keeps the `release:` prefix the next workflow keys on.
+3. **CI tags and publishes the release** — `.github/workflows/create-release.yml` detects the release commit (message starts with `release:`), reads `source.sha` back out of the merged `marketplace.json`, and runs `gh release create vX.Y.Z --generate-notes --target <source.sha>`. That creates the git tag and the GitHub Release in one step, and tags the exact content commit the catalog pins — so `ref` and `sha` resolve to the same commit, and users get a discovery signal plus a changelog.
 
-The triple update (`version` + `ref` + `sha`) is the release: the version string changes the plugin's identity so Claude Code detects an update; the SHA fixes the exact, immutable bytes users run; the ref is the human-readable tag for audits.
+The triple update (`version` + `ref` + `sha`) is the release: the version string changes the plugin's identity so Claude Code detects an update; the SHA fixes the exact, immutable bytes users run; the ref is the human-readable tag for audits, pointing at the same commit the SHA pins.
 
 > **Verified (prior design — re-verify with version field):** a pinned-SHA bump delivers updates. With `version` omitted, the plugin identity fell back to the source commit SHA; bumping the pin (`241c78b` → `41e0a31`) then running `/plugin marketplace update` + `/plugin update togi@togi` moved an installed client to the new commit and ran the new hook code (the new telemetry stamps appeared in its output). With `version` now set in the marketplace entry, the identity is the version string — the update flow needs re-verification with the new design. A live `/plugin install` of a pinned `sha` source resolved as documented — still expected to hold.
 

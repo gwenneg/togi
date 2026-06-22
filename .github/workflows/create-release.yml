@@ -27,7 +27,16 @@ jobs:
             echo "Release $TAG already exists — skipping"
             exit 0
           fi
+          # Tag the commit the catalog actually pins (source.sha), not the merge
+          # commit, so the vX.Y.Z tag (source.ref) and source.sha resolve to the
+          # same content commit.
+          PIN_SHA=$(gh api "repos/$GH_REPO/contents/.claude-plugin/marketplace.json?ref=$SHA" \
+            --jq '.content' | base64 -d | jq -r '.plugins[0].source.sha')
+          if [ -z "$PIN_SHA" ] || [ "$PIN_SHA" = "null" ]; then
+            echo "::error::Could not read source.sha from marketplace.json"
+            exit 1
+          fi
           gh release create "$TAG" \
             --title "$TAG" \
             --generate-notes \
-            --target "$SHA"
+            --target "$PIN_SHA"
