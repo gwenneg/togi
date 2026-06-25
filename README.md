@@ -32,8 +32,8 @@ you work → model hits friction → writes a note to .togi/friction/pending/   
 Togi is distributed as a Claude Code [plugin marketplace](https://code.claude.com/docs/en/plugin-marketplaces) — no cloning or file editing. In Claude Code:
 
 ```
-/plugin marketplace add gwenneg/togi
-/plugin install togi@togi
+/plugin marketplace add gwenneg/claude-ichiba
+/plugin install togi@claude-ichiba
 /reload-plugins
 /togi:setup
 ```
@@ -81,9 +81,9 @@ Everything stays on your machine. Friction notes are written locally under `.tog
 Auto-update is off and Claude Code sends no new-version notification — **watch this repo → Releases only**. To update ([plugin docs](https://code.claude.com/docs/en/discover-plugins)):
 
 ```
-/plugin marketplace update      # refresh the catalog (picks up the new pinned commit)
-/plugin update togi@togi        # install at that commit
-/reload-plugins                 # load the updated hook code
+/plugin marketplace update             # refresh the catalog (picks up the new pinned commit)
+/plugin update togi@claude-ichiba      # install at that commit
+/reload-plugins                        # load the updated hook code
 ```
 
 Releases are pinned to an immutable commit SHA so work-in-progress on `main` never reaches you. The full rationale — and why a plugin's security bar is closer to a software-update service than a library — is in [Supply chain & releases](docs/internals.md#8-supply-chain--releases).

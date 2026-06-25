@@ -60,8 +60,8 @@ Write `adopt-togi.md` with exactly this content:
 
 To participate, run in Claude Code:
 
-    /plugin marketplace add gwenneg/togi
-    /plugin install togi@togi
+    /plugin marketplace add gwenneg/claude-ichiba
+    /plugin install togi@claude-ichiba
     /reload-plugins
     /togi:enable
 

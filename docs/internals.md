@@ -239,7 +239,7 @@ A Claude Code plugin is not a passive dependency — installing it grants the au
 
 Distribution has two independent layers, and with the choices togi makes, neither tracks "latest" automatically:
 
-1. **The marketplace catalog** ([`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json), see [creating a marketplace](https://code.claude.com/docs/en/plugin-marketplaces)) — fetched from `main` when a user adds the marketplace, and refreshed **only** when they explicitly run `/plugin marketplace update`. **Auto-update is off** (Claude Code's default for third-party marketplaces, which togi never overrides — see [discover & install plugins](https://code.claude.com/docs/en/discover-plugins)), so nothing refreshes it at startup.
+1. **The marketplace catalog** ([`claude-ichiba`](https://github.com/gwenneg/claude-ichiba), see [creating a marketplace](https://code.claude.com/docs/en/plugin-marketplaces)) — a dedicated repository hosting `marketplace.json`, fetched from `main` when a user adds the marketplace, and refreshed **only** when they explicitly run `/plugin marketplace update`. **Auto-update is off** (Claude Code's default for third-party marketplaces, which togi never overrides — see [discover & install plugins](https://code.claude.com/docs/en/discover-plugins)), so nothing refreshes it at startup.
 2. **The plugin code** — the catalog pins the plugin `source` to a **full commit `sha`** (a plugin source supports both `ref` and `sha`, per the [marketplace reference](https://code.claude.com/docs/en/plugin-marketplaces)):
    ```json
    "source": { "source": "github", "repo": "gwenneg/togi", "ref": "vX.Y.Z", "sha": "<40-char commit>" }
@@ -263,7 +263,7 @@ Given the platform's constraints (no plugin signing, hooks trusted implicitly, s
 `version` is Claude Code's **update cache key** (resolution order: `plugin.json` `version` → marketplace entry `version` → source commit SHA — see the [plugins reference](https://code.claude.com/docs/en/plugins-reference)). Togi sets `version` in the **marketplace entry** only — never in `plugin.json`. Two reasons, one per file:
 
 - **`plugin.json` omits `version`** because `plugin.json` is priority #1 in the resolution order. If it set a version, that string would silently win over the marketplace entry value, so bumping the marketplace entry alone would not trigger updates — a drift footgun where a version bump in the wrong file ships nothing.
-- **The marketplace entry sets `version`** so users see a human-readable string (e.g. `0.2.1`) in `claude plugin list` instead of a raw commit SHA. The SHA remains the security pin; the version string is the cache key. Both must change together on every release — the release workflow enforces this atomically: one PR updates `version`, `ref`, and `sha` in `marketplace.json` in lockstep.
+- **The marketplace entry sets `version`** so users see a human-readable string (e.g. `0.2.1`) in `claude plugin list` instead of a raw commit SHA. The SHA remains the security pin; the version string is the cache key. Both must change together on every release — the release workflow enforces this atomically: a tag push in togi dispatches to claude-ichiba, which updates `version`, `ref`, and `sha` in `marketplace.json` in one commit.
 
 ### Honest residual risks
 
@@ -275,15 +275,15 @@ This posture is not a complete defense, and the gaps point to complementary cont
 
 ### Cutting a release
 
-Releases are deliberate — pushing to `main` does **not** ship code to users. Content commits land on `main` as usual; CI then automates the release plumbing:
+Releases are deliberate — pushing to `main` does **not** ship code to users. Content commits land on `main` as usual; the developer tags when ready:
 
-1. **CI opens a release PR** — on every non-release push to `main`, `.github/workflows/prepare-release.yml` infers the semver bump from conventional commit prefixes (`feat:` → minor, a `!` before the colon → major, everything else → patch), then opens or updates a PR that bumps `version`, `ref`, and `sha` in `.claude-plugin/marketplace.json` atomically. The pinned `sha` is the content commit the PR was generated from.
-2. **Review and merge** — the PR is the review artifact. Merging is the only manual step. Squash-merge it, so the release commit's subject keeps the `release:` prefix the next workflow keys on.
-3. **CI tags and publishes the release** — `.github/workflows/create-release.yml` detects the release commit (message starts with `release:`), reads `source.sha` back out of the merged `marketplace.json`, and runs `gh release create vX.Y.Z --generate-notes --target <source.sha>`. That creates the git tag and the GitHub Release in one step, and tags the exact content commit the catalog pins — so `ref` and `sha` resolve to the same commit, and users get a discovery signal plus a changelog.
+1. **Developer pushes a tag** — `git tag vX.Y.Z && git push origin vX.Y.Z`. The tag is the deliberate gate: nothing is released until the developer chooses a version and pushes it.
+2. **CI creates the GitHub release** — `.github/workflows/create-release.yml` triggers on `v*` tag pushes, creates a GitHub Release with auto-generated notes, and dispatches a `plugin-release` event to `claude-ichiba` with the plugin name, version, tag, and commit SHA.
+3. **claude-ichiba updates the marketplace catalog** — `.github/workflows/update-marketplace.yml` receives the dispatch and commits the triple update (`version`, `source.ref`, `source.sha`) to `marketplace.json` atomically. A `workflow_dispatch` fallback allows manual triggering if the dispatch fails.
 
-The triple update (`version` + `ref` + `sha`) is the release: the version string changes the plugin's identity so Claude Code detects an update; the SHA fixes the exact, immutable bytes users run; the ref is the human-readable tag for audits, pointing at the same commit the SHA pins.
+The triple update (`version` + `ref` + `sha`) is the release: the version string changes the plugin's identity so Claude Code detects an update; the SHA fixes the exact, immutable bytes users run; the ref is the human-readable tag for audits, pointing at the same commit the SHA pins. The cross-repo dispatch uses a fine-grained PAT scoped to `claude-ichiba` with `contents:write`, stored as `ICHIBA_PAT` in togi's repository secrets.
 
-> **Verified (prior design — re-verify with version field):** a pinned-SHA bump delivers updates. With `version` omitted, the plugin identity fell back to the source commit SHA; bumping the pin (`241c78b` → `41e0a31`) then running `/plugin marketplace update` + `/plugin update togi@togi` moved an installed client to the new commit and ran the new hook code (the new telemetry stamps appeared in its output). With `version` now set in the marketplace entry, the identity is the version string — the update flow needs re-verification with the new design. A live `/plugin install` of a pinned `sha` source resolved as documented — still expected to hold.
+> **Verified (prior design — re-verify with version field):** a pinned-SHA bump delivers updates. With `version` omitted, the plugin identity fell back to the source commit SHA; bumping the pin (`241c78b` → `41e0a31`) then running `/plugin marketplace update` + `/plugin update togi@claude-ichiba` moved an installed client to the new commit and ran the new hook code (the new telemetry stamps appeared in its output). With `version` now set in the marketplace entry, the identity is the version string — the update flow needs re-verification with the new design. A live `/plugin install` of a pinned `sha` source resolved as documented — still expected to hold.
 
 ### Staying up to date
 
@@ -291,7 +291,7 @@ Because auto-update is off, Claude Code gives **no proactive notification** when
 
 ```
 /plugin marketplace update      # 1. refresh your local catalog from main — picks up the new pinned SHA
-/plugin update togi@togi        # 2. install the plugin at that SHA
+/plugin update togi@claude-ichiba        # 2. install the plugin at that SHA
 ```
 
 Step 1 is required: until you refresh the catalog, Claude Code has no knowledge that a newer release exists. Step 2 then installs the plugin at the commit the refreshed catalog pins. If Claude Code prompts you to reload afterward, run `/reload-plugins`.
