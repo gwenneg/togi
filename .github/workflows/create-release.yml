@@ -2,41 +2,42 @@ name: Create Release
 
 on:
   push:
-    branches: [main]
+    tags: ['v*']
 
 jobs:
   create-release:
     runs-on: ubuntu-latest
-    if: "startsWith(github.event.head_commit.message, 'release:')"
     permissions:
       contents: write
     steps:
+      - name: Extract tag
+        id: meta
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
       - name: Create release
         env:
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
-          SHA: ${{ github.sha }}
+          TAG: ${{ steps.meta.outputs.tag }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          TAG=$(printf '%s' "$COMMIT_MSG" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-          if [ -z "$TAG" ]; then
-            echo "::error::Could not extract version tag from commit message"
-            exit 1
-          fi
           if gh release view "$TAG" 2>/dev/null; then
             echo "Release $TAG already exists — skipping"
             exit 0
           fi
-          # Tag the commit the catalog actually pins (source.sha), not the merge
-          # commit, so the vX.Y.Z tag (source.ref) and source.sha resolve to the
-          # same content commit.
-          PIN_SHA=$(gh api "repos/$GH_REPO/contents/.claude-plugin/marketplace.json?ref=$SHA" \
-            --jq '.content' | base64 -d | jq -r '.plugins[0].source.sha')
-          if [ -z "$PIN_SHA" ] || [ "$PIN_SHA" = "null" ]; then
-            echo "::error::Could not read source.sha from marketplace.json"
-            exit 1
-          fi
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --generate-notes \
-            --target "$PIN_SHA"
+          gh release create "$TAG" --title "$TAG" --generate-notes
+
+      - name: Dispatch to claude-ichiba
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+          SHA: ${{ github.sha }}
+          ICHIBA_PAT: ${{ secrets.ICHIBA_PAT }}
+        run: |
+          curl -fsSL -X POST \
+            -H "Authorization: token $ICHIBA_PAT" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/gwenneg/claude-ichiba/dispatches" \
+            -d "$(jq -n \
+              --arg plugin "togi" \
+              --arg tag "$TAG" \
+              --arg sha "$SHA" \
+              '{event_type: "plugin-release", client_payload: {plugin: $plugin, tag: $tag, sha: $sha}}')"
