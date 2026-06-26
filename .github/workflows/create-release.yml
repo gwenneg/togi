@@ -10,15 +10,15 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Extract tag
-        id: meta
-        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+      - id: tag
+        name: Extract tag
+        run: echo "value=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
       - name: Create release
         env:
-          TAG: ${{ steps.meta.outputs.tag }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.value }}
         run: |
           if gh release view "$TAG" 2>/dev/null; then
             echo "Release $TAG already exists — skipping"
@@ -28,9 +28,9 @@ jobs:
 
       - name: Dispatch to claude-ichiba
         env:
-          TAG: ${{ steps.meta.outputs.tag }}
-          SHA: ${{ github.sha }}
           ICHIBA_PAT: ${{ secrets.ICHIBA_PAT }}
+          SHA: ${{ github.sha }}
+          TAG: ${{ steps.tag.outputs.value }}
         run: |
           curl -fsSL -X POST \
             -H "Authorization: token $ICHIBA_PAT" \
